@@ -1,6 +1,4 @@
 """
-hedging/risk.py
-
 Risk metrics computations for hedged and unhedged positions.
 Calculates Expected P&L, Value-at-Risk (VaR), Conditional VaR (CVaR), and delta exposure.
 """
