@@ -11,13 +11,14 @@ from typing import Dict, Optional, Tuple
 from scipy import stats
 
 
-def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFrame:
+def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float, risk_free_rate: float = 0.05) -> pd.DataFrame:
     """
     Calculate risk metrics for simulated P&L outcomes.
     
     Args:
         pnl_sim (np.ndarray): Array of simulated P&L values
         confidence (float): Confidence level between 0.90 and 0.99 (e.g., 0.95 for 95%)
+        risk_free_rate (float): Risk-free rate for Sharpe ratio calculation (default: 5%)
     
     Returns:
         pd.DataFrame: DataFrame with metric names and values
@@ -31,6 +32,17 @@ def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFra
     
     # Calculate Expected P&L
     expected_pnl = float(np.mean(pnl_sim))
+    
+    # Calculate volatility (standard deviation)
+    volatility = float(np.std(pnl_sim))
+    
+    # Calculate Sharpe Ratio
+    # Assuming P&L is for a specific time period, we'll use it as annualized return
+    # For daily P&L, we'd multiply by sqrt(252), but this is position-level P&L
+    if volatility > 0:
+        sharpe_ratio = expected_pnl / volatility
+    else:
+        sharpe_ratio = 0.0
     
     # Calculate Value-at-Risk (VaR)
     # VaR_α = percentile of losses at (1-α)
@@ -46,7 +58,6 @@ def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFra
         cvar = var  # If no losses worse than VaR, CVaR equals VaR
     
     # Calculate additional risk metrics
-    volatility = float(np.std(pnl_sim))
     downside_deviation = calculate_downside_deviation(pnl_sim)
     max_drawdown = calculate_max_drawdown_estimate(pnl_sim)
     
@@ -57,6 +68,7 @@ def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFra
             f'VaR ({confidence:.0%})',
             f'CVaR ({confidence:.0%})',
             'Volatility',
+            'Sharpe Ratio',
             'Downside Deviation',
             'Max Drawdown (Est.)',
             'Skewness',
@@ -67,6 +79,7 @@ def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFra
             var,
             cvar,
             volatility,
+            sharpe_ratio,
             downside_deviation,
             max_drawdown,
             float(stats.skew(pnl_sim)),
@@ -214,9 +227,15 @@ def calculate_hedge_efficiency(hedged_pnl: np.ndarray, unhedged_pnl: np.ndarray)
     # Calculate hedge efficiency (R-squared)
     hedge_efficiency = 1 - (hedged_var / unhedged_var)
     
-    # Calculate cost-adjusted metrics (simplified)
-    hedged_sharpe = np.mean(hedged_pnl) / np.std(hedged_pnl) if np.std(hedged_pnl) > 0 else 0
-    unhedged_sharpe = np.mean(unhedged_pnl) / np.std(unhedged_pnl) if np.std(unhedged_pnl) > 0 else 0
+    # Calculate Sharpe ratios
+    hedged_mean = np.mean(hedged_pnl)
+    unhedged_mean = np.mean(unhedged_pnl)
+    hedged_std = np.std(hedged_pnl)
+    unhedged_std = np.std(unhedged_pnl)
+    
+    hedged_sharpe = hedged_mean / hedged_std if hedged_std > 0 else 0
+    unhedged_sharpe = unhedged_mean / unhedged_std if unhedged_std > 0 else 0
+    sharpe_improvement = hedged_sharpe - unhedged_sharpe
     
     efficiency_metrics = {
         'variance_reduction': float(variance_reduction),
@@ -225,7 +244,7 @@ def calculate_hedge_efficiency(hedged_pnl: np.ndarray, unhedged_pnl: np.ndarray)
         'tracking_error': float(tracking_error),
         'hedged_sharpe': float(hedged_sharpe),
         'unhedged_sharpe': float(unhedged_sharpe),
-        'sharpe_improvement': float(hedged_sharpe - unhedged_sharpe)
+        'sharpe_improvement': float(sharpe_improvement)
     }
     
     return efficiency_metrics
