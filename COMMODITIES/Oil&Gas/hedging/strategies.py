@@ -94,6 +94,44 @@ def compute_options_hedge(prices: pd.Series, position: float, hedge_ratio: float
     return hedge_pnl
 
 
+def compute_options_hedge_with_greeks(prices: pd.Series, position: float, 
+                                    strike_price: float, expiry_months: int,
+                                    hedge_ratio: float) -> Dict[str, pd.Series]:
+    """
+    Enhanced options hedge calculation with full Greeks analysis.
+    """
+    
+    results = {}
+    greeks_history = []
+    
+    for i, price in enumerate(prices):
+        # Calculate time to expiry (decreasing)
+        time_to_expiry = max(0.01, expiry_months/12 - i/252)  # Approximate
+        
+        # Get all Greeks
+        greeks = calculate_black_scholes_greeks(
+            price, strike_price, time_to_expiry, 0.05, 0.25, "put"
+        )
+        greeks_history.append(greeks)
+        
+        # Calculate hedge P&L with Greeks
+        if i > 0:
+            price_change = price - prices.iloc[i-1]
+            
+            # More accurate P&L using Greeks
+            delta_pnl = greeks['delta'] * price_change * position * hedge_ratio
+            gamma_pnl = 0.5 * greeks['gamma'] * price_change**2 * position * hedge_ratio
+            theta_pnl = greeks['theta'] * position * hedge_ratio
+            
+            total_hedge_pnl = delta_pnl + gamma_pnl + theta_pnl
+            results[prices.index[i]] = total_hedge_pnl
+    
+    return {
+        'hedge_pnl': pd.Series(results),
+        'greeks_history': greeks_history
+    }
+
+
 def calculate_option_delta(spot_price: float, strike_price: float, time_to_expiry: float,
                           risk_free_rate: float, volatility: float, option_type: str) -> float:
     """
