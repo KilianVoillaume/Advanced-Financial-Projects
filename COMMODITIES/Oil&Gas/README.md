@@ -17,7 +17,7 @@ This app helps analyze commodity hedging decisions by:
 - **Strategies**: Futures hedging and Options hedging
 - **Live data**: Real-time prices via Yahoo Finance
 - **Interactive charts**: Price history, payoff diagrams, P&L distributions
-- **Risk analysis**: Professional risk metrics and comparisons
+- **Risk analysis**: Professional risk metrics including VaR, CVaR, Sharpe ratio, and comparisons
 
 ## Quick Start
 
@@ -56,3 +56,22 @@ Oil-Gas/
 2. **Configure Options**: Set strike price and expiration (for options strategy)
 3. **Set Risk Settings**: Choose confidence level and number of simulations
 4. **View Results**: Analyze charts, payoff diagrams, and risk metrics
+
+## Example
+
+For a long 1,000 barrel WTI position at $75:
+- **Unhedged**: Full exposure to price movements
+- **80% Futures Hedge**: Reduces volatility but locks in price
+- **80% Put Options**: Downside protection with upside participation
+
+## Deployment
+
+**Streamlit Cloud** (recommended):
+1. Push code to GitHub
+2. Connect repository at [share.streamlit.io](https://share.streamlit.io)
+3. Deploy with one click
+
+**Local deployment**:
+```bash
+streamlit run app.py
+```
