@@ -347,20 +347,22 @@ def display_price_chart():
     ))
     
     # Add current price line
+    current_price_val = float(st.session_state.current_price)
     fig.add_hline(
-        y=st.session_state.current_price,
+        y=current_price_val,
         line_dash="dash",
         line_color="red",
-        annotation_text=f"Current: ${st.session_state.current_price:.2f}"
+        annotation_text=f"Current: ${current_price_val:.2f}"
     )
     
     # Add strike price line for options
     if st.session_state.params['strategy'] == 'Options' and st.session_state.params['strike_price']:
+        strike_price_val = float(st.session_state.params['strike_price'])
         fig.add_hline(
-            y=st.session_state.params['strike_price'],
+            y=strike_price_val,
             line_dash="dot",
             line_color="green",
-            annotation_text=f"Strike: ${st.session_state.params['strike_price']:.2f}"
+            annotation_text=f"Strike: ${strike_price_val:.2f}"
         )
     
     fig.update_layout(
@@ -377,14 +379,20 @@ def display_price_chart():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Min Price", f"${prices.min():.2f}")
+        min_price = float(prices.min())
+        st.metric("Min Price", f"${min_price:.2f}")
     
     with col2:
-        st.metric("Max Price", f"${prices.max():.2f}")
+        max_price = float(prices.max())
+        st.metric("Max Price", f"${max_price:.2f}")
     
     with col3:
-        volatility = prices.pct_change().std() * np.sqrt(252) * 100
-        st.metric("Annualized Volatility", f"{volatility:.1f}%")
+        returns = prices.pct_change().dropna()
+        if len(returns) > 0:
+            volatility = float(returns.std()) * np.sqrt(252) * 100
+            st.metric("Annualized Volatility", f"{volatility:.1f}%")
+        else:
+            st.metric("Annualized Volatility", "N/A")
 
 
 def display_payoff_diagram():
@@ -430,20 +438,22 @@ def display_payoff_diagram():
     fig.add_hline(y=0, line_dash="solid", line_color="black", line_width=1)
     
     # Add current price line
+    current_price_val = float(current_price)
     fig.add_vline(
-        x=current_price,
+        x=current_price_val,
         line_dash="dash",
         line_color="orange",
-        annotation_text=f"Current Price: ${current_price:.2f}"
+        annotation_text=f"Current Price: ${current_price_val:.2f}"
     )
     
     # Add breakeven points
     for i, breakeven in enumerate(payoff_data['breakeven_prices']):
+        breakeven_val = float(breakeven)
         fig.add_vline(
-            x=breakeven,
+            x=breakeven_val,
             line_dash="dot",
             line_color="purple",
-            annotation_text=f"Breakeven: ${breakeven:.2f}"
+            annotation_text=f"Breakeven: ${breakeven_val:.2f}"
         )
     
     fig.update_layout(
@@ -461,11 +471,11 @@ def display_payoff_diagram():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        max_profit = payoff_data['net_pnl'].max()
+        max_profit = float(payoff_data['net_pnl'].max())
         st.metric("Max Profit", f"${max_profit:,.0f}")
     
     with col2:
-        max_loss = payoff_data['net_pnl'].min()
+        max_loss = float(payoff_data['net_pnl'].min())
         st.metric("Max Loss", f"${max_loss:,.0f}")
     
     with col3:
@@ -530,9 +540,9 @@ def display_pnl_distribution():
     
     with col1:
         st.markdown("**Unhedged Position:**")
-        unhedged_mean = np.mean(sim_results['unhedged_pnl'])
-        unhedged_std = np.std(sim_results['unhedged_pnl'])
-        unhedged_prob_loss = np.sum(sim_results['unhedged_pnl'] < 0) / len(sim_results['unhedged_pnl'])
+        unhedged_mean = float(np.mean(sim_results['unhedged_pnl']))
+        unhedged_std = float(np.std(sim_results['unhedged_pnl']))
+        unhedged_prob_loss = float(np.sum(sim_results['unhedged_pnl'] < 0) / len(sim_results['unhedged_pnl']))
         
         st.metric("Expected P&L", f"${unhedged_mean:,.0f}")
         st.metric("Volatility", f"${unhedged_std:,.0f}")
@@ -540,9 +550,9 @@ def display_pnl_distribution():
     
     with col2:
         st.markdown("**Hedged Position:**")
-        hedged_mean = np.mean(sim_results['hedged_pnl'])
-        hedged_std = np.std(sim_results['hedged_pnl'])
-        hedged_prob_loss = np.sum(sim_results['hedged_pnl'] < 0) / len(sim_results['hedged_pnl'])
+        hedged_mean = float(np.mean(sim_results['hedged_pnl']))
+        hedged_std = float(np.std(sim_results['hedged_pnl']))
+        hedged_prob_loss = float(np.sum(sim_results['hedged_pnl'] < 0) / len(sim_results['hedged_pnl']))
         
         st.metric("Expected P&L", f"${hedged_mean:,.0f}")
         st.metric("Volatility", f"${hedged_std:,.0f}")
@@ -557,21 +567,21 @@ def display_pnl_distribution():
     with col1:
         st.metric(
             "Volatility Reduction",
-            f"{effectiveness['volatility_reduction']:.1%}",
+            f"{float(effectiveness['volatility_reduction']):.1%}",
             help="Reduction in P&L volatility from hedging"
         )
     
     with col2:
         st.metric(
-            "Loss Probability Reduction",
-            f"{effectiveness['loss_prob_reduction']:.1%}",
+            "Loss Probability Reduction", 
+            f"{float(effectiveness['loss_prob_reduction']):.1%}",
             help="Reduction in probability of loss"
         )
     
     with col3:
         st.metric(
             "Expected P&L Change",
-            f"${effectiveness['mean_difference']:,.0f}",
+            f"${float(effectiveness['mean_difference']):,.0f}",
             help="Change in expected P&L from hedging"
         )
 
@@ -609,17 +619,18 @@ def display_risk_metrics():
     col1, col2 = st.columns(2)
     
     with col1:
+        delta_exp_val = float(st.session_state.delta_exposure)
         st.metric(
             "Delta Exposure",
-            f"{st.session_state.delta_exposure:,.0f}",
+            f"{delta_exp_val:,.0f}",
             help="Net delta exposure of the hedged position"
         )
     
     with col2:
-        hedge_ratio = st.session_state.params['hedge_ratio']
+        hedge_ratio_val = float(st.session_state.params['hedge_ratio'])
         st.metric(
             "Hedge Effectiveness",
-            f"{hedge_ratio:.1%}",
+            f"{hedge_ratio_val:.1%}",
             help="Percentage of position that is hedged"
         )
     
