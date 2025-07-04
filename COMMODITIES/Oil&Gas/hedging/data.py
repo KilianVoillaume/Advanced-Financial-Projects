@@ -75,7 +75,6 @@ def get_price_statistics(commodity: str, period: str = "1y") -> Dict[str, float]
         if prices.empty:
             raise ValueError(f"No price data available for {commodity}")
         
-        # Calculate statistics
         stats = {
             "current_price": float(prices.iloc[-1]),
             "mean_price": float(prices.mean()),
@@ -84,39 +83,32 @@ def get_price_statistics(commodity: str, period: str = "1y") -> Dict[str, float]
             "max_price": float(prices.max()),
             "price_range": float(prices.max() - prices.min()),
             "volatility": float(prices.pct_change().std() * (252 ** 0.5))  # Annualized volatility
-        }
-        
+        } 
         return stats
         
     except Exception as e:
         raise ValueError(f"Error calculating statistics for {commodity}: {str(e)}")
 
-
 def validate_commodity(commodity: str) -> bool:
     return commodity in COMMODITY_TICKERS
 
-
 def get_available_commodities() -> list:
     return list(COMMODITY_TICKERS.keys())
-
 
 if __name__ == "__main__":
     print("Testing hedging/data.py module...")
     
     print(f"Available commodities: {get_available_commodities()}")
     
-    # Test price fetching for WTI
     try:
         wti_prices = get_prices("WTI")
         print(f"WTI prices fetched: {len(wti_prices)} data points")
         print(f"Date range: {wti_prices.index[0].date()} to {wti_prices.index[-1].date()}")
         print(f"Price range: ${wti_prices.min():.2f} - ${wti_prices.max():.2f}")
         
-        # Test current price
         current_wti = get_current_price("WTI")
         print(f"Current WTI price: ${current_wti:.2f}")
         
-        # Test statistics
         wti_stats = get_price_statistics("WTI")
         print(f"WTI volatility: {wti_stats['volatility']:.2%}")
         
