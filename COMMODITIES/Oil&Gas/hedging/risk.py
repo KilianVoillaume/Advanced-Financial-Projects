@@ -1,4 +1,6 @@
 """
+hedging/risk.py
+
 Risk metrics computations for hedged and unhedged positions.
 Calculates Expected P&L, Value-at-Risk (VaR), Conditional VaR (CVaR), and delta exposure.
 """
@@ -12,6 +14,13 @@ from scipy import stats
 def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFrame:
     """
     Calculate risk metrics for simulated P&L outcomes.
+    
+    Args:
+        pnl_sim (np.ndarray): Array of simulated P&L values
+        confidence (float): Confidence level between 0.90 and 0.99 (e.g., 0.95 for 95%)
+    
+    Returns:
+        pd.DataFrame: DataFrame with metric names and values
     """
     
     if len(pnl_sim) == 0:
@@ -20,6 +29,7 @@ def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFra
     if not (0.90 <= confidence <= 0.99):
         raise ValueError("Confidence level must be between 0.90 and 0.99")
     
+    # Calculate Expected P&L
     expected_pnl = float(np.mean(pnl_sim))
     
     # Calculate Value-at-Risk (VaR)
@@ -35,10 +45,12 @@ def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFra
     else:
         cvar = var  # If no losses worse than VaR, CVaR equals VaR
     
+    # Calculate additional risk metrics
     volatility = float(np.std(pnl_sim))
     downside_deviation = calculate_downside_deviation(pnl_sim)
     max_drawdown = calculate_max_drawdown_estimate(pnl_sim)
     
+    # Create results DataFrame
     metrics_data = {
         'Metric': [
             'Expected P&L',
@@ -70,6 +82,13 @@ def calculate_risk_metrics(pnl_sim: np.ndarray, confidence: float) -> pd.DataFra
 def calculate_downside_deviation(pnl_sim: np.ndarray, target_return: float = 0.0) -> float:
     """
     Calculate downside deviation (volatility of negative returns only).
+    
+    Args:
+        pnl_sim (np.ndarray): Array of simulated P&L values
+        target_return (float): Target return threshold (default: 0.0)
+    
+    Returns:
+        float: Downside deviation
     """
     
     # Get returns below target
@@ -78,6 +97,7 @@ def calculate_downside_deviation(pnl_sim: np.ndarray, target_return: float = 0.0
     if len(downside_returns) == 0:
         return 0.0
     
+    # Calculate downside deviation
     downside_deviation = float(np.sqrt(np.mean((downside_returns - target_return) ** 2)))
     
     return downside_deviation
@@ -86,21 +106,46 @@ def calculate_downside_deviation(pnl_sim: np.ndarray, target_return: float = 0.0
 def calculate_max_drawdown_estimate(pnl_sim: np.ndarray) -> float:
     """
     Estimate maximum drawdown from P&L simulations.
+    
+    Args:
+        pnl_sim (np.ndarray): Array of simulated P&L values
+    
+    Returns:
+        float: Estimated maximum drawdown
     """
     
+    # Sort P&L from best to worst
     sorted_pnl = np.sort(pnl_sim)[::-1]
-    cumulative_pnl = np.cumsum(sorted_pnl)
-    running_max = np.maximum.accumulate(cumulative_pnl)
-      drawdowns = cumulative_pnl - running_max
     
+    # Calculate cumulative P&L
+    cumulative_pnl = np.cumsum(sorted_pnl)
+    
+    # Calculate running maximum
+    running_max = np.maximum.accumulate(cumulative_pnl)
+    
+    # Calculate drawdowns
+    drawdowns = cumulative_pnl - running_max
+    
+    # Return maximum drawdown (most negative value)
     max_drawdown = float(np.min(drawdowns))
     
     return max_drawdown
 
 
-def calculate_delta_exposure(prices: pd.Series, position: float, hedge_ratio: float, strategy: str, strike_price: Optional[float] = None) -> float:
+def calculate_delta_exposure(prices: pd.Series, position: float, hedge_ratio: float,
+                           strategy: str, strike_price: Optional[float] = None) -> float:
     """
     Calculate approximate delta exposure of the hedged position.
+    
+    Args:
+        prices (pd.Series): Historical commodity prices
+        position (float): Position size
+        hedge_ratio (float): Hedge ratio between 0.0 and 1.0
+        strategy (str): "Futures" or "Options"
+        strike_price (Optional[float]): Strike price for options
+    
+    Returns:
+        float: Approximate delta exposure
     """
     
     if strategy.lower() == "futures":
@@ -146,22 +191,30 @@ def calculate_delta_exposure(prices: pd.Series, position: float, hedge_ratio: fl
 def calculate_hedge_efficiency(hedged_pnl: np.ndarray, unhedged_pnl: np.ndarray) -> Dict[str, float]:
     """
     Calculate hedge efficiency metrics comparing hedged vs unhedged positions.
+    
+    Args:
+        hedged_pnl (np.ndarray): Simulated hedged P&L
+        unhedged_pnl (np.ndarray): Simulated unhedged P&L
+    
+    Returns:
+        Dict[str, float]: Hedge efficiency metrics
     """
     
-    # Variance reduction
+    # Calculate variance reduction
     hedged_var = np.var(hedged_pnl)
     unhedged_var = np.var(unhedged_pnl)
     variance_reduction = (unhedged_var - hedged_var) / unhedged_var
     
-    # Correlation-based hedge ratio effectiveness
+    # Calculate correlation-based hedge ratio effectiveness
     correlation = np.corrcoef(hedged_pnl, unhedged_pnl)[0, 1]
     
+    # Calculate tracking error
     tracking_error = np.std(hedged_pnl - unhedged_pnl)
     
-    # Hedge efficiency (R-squared)
+    # Calculate hedge efficiency (R-squared)
     hedge_efficiency = 1 - (hedged_var / unhedged_var)
     
-    # Cost-adjusted metrics (simplified)
+    # Calculate cost-adjusted metrics (simplified)
     hedged_sharpe = np.mean(hedged_pnl) / np.std(hedged_pnl) if np.std(hedged_pnl) > 0 else 0
     unhedged_sharpe = np.mean(unhedged_pnl) / np.std(unhedged_pnl) if np.std(unhedged_pnl) > 0 else 0
     
@@ -179,10 +232,21 @@ def calculate_hedge_efficiency(hedged_pnl: np.ndarray, unhedged_pnl: np.ndarray)
 
 
 def calculate_scenario_analysis(current_price: float, position: float, hedge_ratio: float,
-                              strategy: str, strike_price: Optional[float] = None,
-                              price_shocks: Optional[list] = None) -> pd.DataFrame:
+                                strategy: str, strike_price: Optional[float] = None,
+                                price_shocks: Optional[list] = None) -> pd.DataFrame:
     """
     Calculate P&L under different price shock scenarios.
+    
+    Args:
+        current_price (float): Current spot price
+        position (float): Position size
+        hedge_ratio (float): Hedge ratio
+        strategy (str): "Futures" or "Options"
+        strike_price (Optional[float]): Strike price for options
+        price_shocks (Optional[list]): List of price shock percentages (default: standard scenarios)
+    
+    Returns:
+        pd.DataFrame: Scenario analysis results
     """
     
     if price_shocks is None:
@@ -196,6 +260,7 @@ def calculate_scenario_analysis(current_price: float, position: float, hedge_rat
     for shock in price_shocks:
         shocked_price = current_price * (1 + shock)
         
+        # Calculate underlying P&L
         underlying_pnl = (shocked_price - current_price) * position
         
         # Calculate hedge P&L
@@ -235,6 +300,13 @@ def calculate_scenario_analysis(current_price: float, position: float, hedge_rat
 def summarize_risk_comparison(hedged_metrics: pd.DataFrame, unhedged_metrics: pd.DataFrame) -> pd.DataFrame:
     """
     Create a side-by-side comparison of risk metrics for hedged vs unhedged positions.
+    
+    Args:
+        hedged_metrics (pd.DataFrame): Risk metrics for hedged position
+        unhedged_metrics (pd.DataFrame): Risk metrics for unhedged position
+    
+    Returns:
+        pd.DataFrame: Comparison table
     """
     
     # Merge the metrics
@@ -244,22 +316,25 @@ def summarize_risk_comparison(hedged_metrics: pd.DataFrame, unhedged_metrics: pd
     comparison['Difference'] = comparison['Value_Hedged'] - comparison['Value_Unhedged']
     comparison['Improvement'] = comparison['Difference'] / comparison['Value_Unhedged'].abs()
     
-    # Reorder clarity
+    # Reorder columns for clarity
     comparison = comparison[['Metric', 'Value_Unhedged', 'Value_Hedged', 'Difference', 'Improvement']]
     
     return comparison
 
 
+# Example usage and testing
 if __name__ == "__main__":
+    # Test the risk metrics module
     print("Testing hedging/risk.py module...")
     
+    # Create sample simulation data
     np.random.seed(42)  # For reproducible results
     n_sim = 10000
     
-    # Unhedged P&L (higher volatility)
+    # Simulate unhedged P&L (higher volatility)
     unhedged_pnl = np.random.normal(100, 500, n_sim)  # Mean $100, Std $500
     
-    # Hedged P&L (lower volatility, slightly lower mean due to hedge cost)
+    # Simulate hedged P&L (lower volatility, slightly lower mean due to hedge cost)
     hedged_pnl = np.random.normal(80, 200, n_sim)   # Mean $80, Std $200
     
     confidence_level = 0.95
