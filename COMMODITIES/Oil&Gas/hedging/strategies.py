@@ -24,6 +24,10 @@ def compute_futures_hedge(prices: pd.Series, position: float, hedge_ratio: float
         pd.Series: P&L series for futures hedge
     """
     
+    # Convert inputs to float to ensure compatibility
+    position = float(position)
+    hedge_ratio = float(hedge_ratio)
+    
     # Calculate price changes
     price_changes = prices.diff().dropna()
     
@@ -56,15 +60,24 @@ def compute_options_hedge(prices: pd.Series, position: float, hedge_ratio: float
         pd.Series: P&L series for options hedge
     """
     
+    # Convert inputs to float to ensure compatibility
+    position = float(position)
+    hedge_ratio = float(hedge_ratio)
+    strike_price = float(strike_price)
+    time_to_expiry = float(time_to_expiry)
+    risk_free_rate = float(risk_free_rate)
+    
     # Estimate volatility if not provided
     if volatility is None:
         returns = prices.pct_change().dropna()
-        volatility = returns.std() * np.sqrt(252)  # Annualized volatility
+        volatility = float(returns.std() * np.sqrt(252))  # Annualized volatility
+    else:
+        volatility = float(volatility)
     
     # Calculate option delta for each price point
     deltas = []
     for price in prices:
-        delta = calculate_option_delta(price, strike_price, time_to_expiry, 
+        delta = calculate_option_delta(float(price), strike_price, time_to_expiry, 
                                      risk_free_rate, volatility, option_type)
         deltas.append(delta)
     
