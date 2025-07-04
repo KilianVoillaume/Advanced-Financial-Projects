@@ -1,4 +1,6 @@
 """
+hedging/simulation.py
+
 P&L simulation engine for hedged and unhedged positions.
 Generates Monte Carlo simulations based on historical price data.
 """
@@ -13,16 +15,26 @@ from .strategies import compute_futures_hedge, compute_options_hedge
 def simulate_pnl(pnl_series: pd.Series, n_sim: int = 1000, simulation_method: str = "normal") -> np.ndarray:
     """
     Simulate P&L outcomes using historical P&L series.
+    
+    Args:
+        pnl_series (pd.Series): Historical P&L series
+        n_sim (int): Number of simulations to run (default: 1000)
+        simulation_method (str): Method for simulation ("normal", "bootstrap", "t_dist")
+    
+    Returns:
+        np.ndarray: Array of simulated P&L outcomes
     """
     
     if pnl_series.empty:
         raise ValueError("P&L series cannot be empty")
     
+    # Remove any NaN values
     pnl_clean = pnl_series.dropna()
     
     if len(pnl_clean) < 2:
         raise ValueError("Need at least 2 data points for simulation")
     
+    # Generate simulations based on method
     if simulation_method.lower() == "normal":
         simulated_pnl = _simulate_normal_distribution(pnl_clean, n_sim)
     elif simulation_method.lower() == "bootstrap":
@@ -38,6 +50,13 @@ def simulate_pnl(pnl_series: pd.Series, n_sim: int = 1000, simulation_method: st
 def _simulate_normal_distribution(pnl_series: pd.Series, n_sim: int) -> np.ndarray:
     """
     Simulate P&L using normal distribution fitted to historical data.
+    
+    Args:
+        pnl_series (pd.Series): Historical P&L series
+        n_sim (int): Number of simulations
+    
+    Returns:
+        np.ndarray: Simulated P&L outcomes
     """
     
     # Calculate mean and standard deviation
@@ -53,6 +72,13 @@ def _simulate_normal_distribution(pnl_series: pd.Series, n_sim: int) -> np.ndarr
 def _simulate_bootstrap(pnl_series: pd.Series, n_sim: int) -> np.ndarray:
     """
     Simulate P&L using bootstrap resampling of historical data.
+    
+    Args:
+        pnl_series (pd.Series): Historical P&L series
+        n_sim (int): Number of simulations
+    
+    Returns:
+        np.ndarray: Simulated P&L outcomes
     """
     
     # Bootstrap resampling with replacement
@@ -64,6 +90,13 @@ def _simulate_bootstrap(pnl_series: pd.Series, n_sim: int) -> np.ndarray:
 def _simulate_t_distribution(pnl_series: pd.Series, n_sim: int) -> np.ndarray:
     """
     Simulate P&L using t-distribution fitted to historical data.
+    
+    Args:
+        pnl_series (pd.Series): Historical P&L series
+        n_sim (int): Number of simulations
+    
+    Returns:
+        np.ndarray: Simulated P&L outcomes
     """
     
     # Fit t-distribution to data
@@ -81,25 +114,54 @@ def simulate_hedged_vs_unhedged(prices: pd.Series, position: float, hedge_ratio:
                                n_sim: int = 1000, simulation_method: str = "normal") -> Dict[str, np.ndarray]:
     """
     Simulate P&L for both hedged and unhedged positions.
+    
+    Args:
+        prices (pd.Series): Historical commodity prices
+        position (float): Position size
+        hedge_ratio (float): Hedge ratio between 0.0 and 1.0
+        strategy (str): "Futures" or "Options"
+        strike_price (Optional[float]): Strike price for options
+        n_sim (int): Number of simulations (default: 1000)
+        simulation_method (str): Simulation method (default: "normal")
+    
+    Returns:
+        Dict[str, np.ndarray]: Dictionary containing:
+            - 'unhedged_pnl': Unhedged position simulations
+            - 'hedged_pnl': Hedged position simulations
+            - 'hedge_benefit': Difference between hedged and unhedged
     """
     
+    # Convert inputs to float to ensure compatibility
+    position = float(position)
+    hedge_ratio = float(hedge_ratio)
+    if strike_price is not None:
+        strike_price = float(strike_price)
+    
+    # Calculate historical unhedged P&L
     price_changes = prices.diff().dropna()
     unhedged_pnl = price_changes * position
     
+    # Calculate historical hedge P&L based on strategy
     if strategy.lower() == "futures":
         hedge_pnl = compute_futures_hedge(prices, position, hedge_ratio)
     elif strategy.lower() == "options":
-        hedge_pnl = compute_options_hedge(prices, position, hedge_ratio, 
-                                        strike_price or prices.iloc[-1])
+        if strike_price is None:
+            strike_price = float(prices.iloc[-1])  # Use last price as default
+        hedge_pnl = compute_options_hedge(prices, position, hedge_ratio, strike_price)
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
     
+    # Align hedge P&L with unhedged P&L (same time periods)
     hedge_pnl_aligned = hedge_pnl.reindex(unhedged_pnl.index, fill_value=0)
+    
+    # Calculate net hedged P&L
     hedged_pnl = unhedged_pnl + hedge_pnl_aligned
     
+    # Simulate both hedged and unhedged scenarios
     unhedged_sim = simulate_pnl(unhedged_pnl, n_sim, simulation_method)
     hedged_sim = simulate_pnl(hedged_pnl, n_sim, simulation_method)
     
+    # Calculate hedge benefit
     hedge_benefit = hedged_sim - unhedged_sim
     
     return {
@@ -113,22 +175,38 @@ def simulate_price_scenarios(current_price: float, volatility: float, time_horiz
                            n_sim: int = 1000, n_steps: int = 252) -> np.ndarray:
     """
     Simulate future price paths using Geometric Brownian Motion.
+    
+    Args:
+        current_price (float): Current spot price
+        volatility (float): Annualized volatility
+        time_horizon (float): Time horizon in years
+        n_sim (int): Number of price path simulations (default: 1000)
+        n_steps (int): Number of time steps (default: 252 trading days)
+    
+    Returns:
+        np.ndarray: Array of simulated final prices (shape: n_sim)
     """
     
+    # Time step
     dt = time_horizon / n_steps
     
     # Drift (assume zero for simplicity in commodity markets)
     mu = 0.0
     
+    # Generate random shocks
     random_shocks = np.random.normal(0, 1, (n_sim, n_steps))
+    
+    # Initialize price paths
     price_paths = np.zeros((n_sim, n_steps + 1))
     price_paths[:, 0] = current_price
     
+    # Simulate price paths using GBM
     for t in range(n_steps):
         price_paths[:, t + 1] = price_paths[:, t] * np.exp(
             (mu - 0.5 * volatility**2) * dt + volatility * np.sqrt(dt) * random_shocks[:, t]
         )
     
+    # Return final prices
     final_prices = price_paths[:, -1]
     
     return final_prices
@@ -137,11 +215,18 @@ def simulate_price_scenarios(current_price: float, volatility: float, time_horiz
 def calculate_simulation_statistics(simulated_pnl: np.ndarray) -> Dict[str, float]:
     """
     Calculate statistics for simulated P&L outcomes.
+    
+    Args:
+        simulated_pnl (np.ndarray): Array of simulated P&L values
+    
+    Returns:
+        Dict[str, float]: Dictionary of statistics
     """
     
     if len(simulated_pnl) == 0:
         raise ValueError("Simulated P&L array cannot be empty")
     
+    # Calculate basic statistics
     stats_dict = {
         'mean': float(np.mean(simulated_pnl)),
         'std': float(np.std(simulated_pnl)),
@@ -156,6 +241,7 @@ def calculate_simulation_statistics(simulated_pnl: np.ndarray) -> Dict[str, floa
         'percentile_95': float(np.percentile(simulated_pnl, 95))
     }
     
+    # Calculate probability of profit/loss
     stats_dict['prob_profit'] = float(np.sum(simulated_pnl > 0) / len(simulated_pnl))
     stats_dict['prob_loss'] = float(np.sum(simulated_pnl < 0) / len(simulated_pnl))
     
@@ -165,11 +251,20 @@ def calculate_simulation_statistics(simulated_pnl: np.ndarray) -> Dict[str, floa
 def compare_hedging_effectiveness(hedged_sim: np.ndarray, unhedged_sim: np.ndarray) -> Dict[str, float]:
     """
     Compare effectiveness of hedging strategy vs unhedged position.
+    
+    Args:
+        hedged_sim (np.ndarray): Simulated hedged P&L
+        unhedged_sim (np.ndarray): Simulated unhedged P&L
+    
+    Returns:
+        Dict[str, float]: Comparison metrics
     """
     
+    # Calculate statistics for both
     hedged_stats = calculate_simulation_statistics(hedged_sim)
     unhedged_stats = calculate_simulation_statistics(unhedged_sim)
     
+    # Calculate comparison metrics
     comparison = {
         'hedged_mean': hedged_stats['mean'],
         'unhedged_mean': unhedged_stats['mean'],
