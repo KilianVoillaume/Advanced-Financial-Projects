@@ -1,4 +1,6 @@
 """
+app.py
+
 Main Streamlit application for the Oil & Gas Hedging Simulator.
 Simulates and analyzes hedging strategies on oil & gas commodities.
 """
@@ -18,6 +20,7 @@ from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effe
 from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison
 
 
+# Page configuration
 st.set_page_config(
     page_title="Oil & Gas Hedging Simulator",
     page_icon="🛢️",
@@ -25,6 +28,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Custom CSS for better styling
 st.markdown("""
 <style>
     .main-header {
@@ -151,7 +155,7 @@ def main():
                 )
                 
                 # Moneyness indicator
-                moneyness = current_price / strike_price
+                moneyness = float(current_price) / float(strike_price)
                 if abs(moneyness - 1.0) < 0.05:
                     moneyness_desc = "At-the-Money (ATM)"
                 elif moneyness > 1.05:
@@ -159,7 +163,7 @@ def main():
                 else:
                     moneyness_desc = "In-the-Money (ITM)"
                 
-                st.caption(f"Current Price: ${current_price:.2f} | Moneyness: {moneyness_desc}")
+                st.caption(f"Current Price: ${float(current_price):.2f} | Moneyness: {moneyness_desc}")
                 
                 # Option expiration
                 option_expiry = st.selectbox(
@@ -214,7 +218,11 @@ def main():
             try:
                 # Fetch data
                 prices = get_prices(commodity)
-                current_price = get_current_price(commodity)
+                current_price = float(get_current_price(commodity))
+                
+                # Ensure strike_price is float for options
+                if strategy == "Options" and strike_price is not None:
+                    strike_price = float(strike_price)
                 
                 # Run simulation
                 sim_results = simulate_hedged_vs_unhedged(
@@ -223,7 +231,8 @@ def main():
                 
                 # Calculate payoff diagram
                 payoff_data = compute_payoff_diagram(
-                    current_price, position, hedge_ratio, strategy, strike_price
+                    float(current_price), position, hedge_ratio, strategy, 
+                    float(strike_price) if strike_price is not None else None
                 )
                 
                 # Calculate risk metrics
@@ -231,7 +240,10 @@ def main():
                 unhedged_risk = calculate_risk_metrics(sim_results['unhedged_pnl'], confidence)
                 
                 # Calculate delta exposure
-                delta_exposure = calculate_delta_exposure(prices, position, hedge_ratio, strategy, strike_price)
+                delta_exposure = calculate_delta_exposure(
+                    prices, position, hedge_ratio, strategy, 
+                    float(strike_price) if strike_price is not None else None
+                )
                 
                 # Store results in session state
                 st.session_state.prices = prices
