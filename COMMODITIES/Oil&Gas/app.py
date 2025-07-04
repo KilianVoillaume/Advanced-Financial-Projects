@@ -347,8 +347,8 @@ def display_results():
         )
     
     # Create tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Price Chart", "📊 Payoff Diagram", "🎯 P&L Distribution", "📋 Risk Metrics"])
-    
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Price Chart", "📊 Payoff Diagram", "🎯 P&L Distribution", "📋 Risk Metrics", "🔢 Greeks Analysis"])
+
     with tab1:
         display_price_chart()
     
@@ -360,7 +360,9 @@ def display_results():
     
     with tab4:
         display_risk_metrics()
-
+        
+    with tab5:
+        display_greeks_analysis()
 
 def display_price_chart():
     """Display historical price chart."""
@@ -741,6 +743,100 @@ def display_risk_metrics():
             else:
                 st.info(f"➡️ **Hedging maintains risk-adjusted returns** (Sharpe: {hedged_sharpe:.3f})")
                 st.markdown("The hedge provides risk reduction without impacting risk-adjusted performance.")
+
+def display_greeks_analysis():
+    """Display comprehensive Greeks analysis."""
+    
+    if st.session_state.params['strategy'] != 'Options':
+        st.info("📝 Greeks analysis is only available for Options strategies.")
+        return
+    
+    st.markdown('<h3 class="section-header">Options Greeks Analysis</h3>', unsafe_allow_html=True)
+    
+    # Current Greeks
+    current_price = st.session_state.current_price
+    strike_price = st.session_state.params['strike_price']
+    
+    greeks = calculate_black_scholes_greeks(
+        current_price, strike_price, 0.25, 0.05, 0.25, "put"
+    )
+    
+    # Display current Greeks
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        st.metric(
+            "Delta (Δ)", 
+            f"{greeks['delta']:.3f}",
+            help="Price sensitivity: ΔOption Price / ΔUnderlying Price"
+        )
+    
+    with col2:
+        st.metric(
+            "Gamma (Γ)", 
+            f"{greeks['gamma']:.4f}",
+            help="Delta sensitivity: ΔDelta / ΔUnderlying Price"
+        )
+    
+    with col3:
+        st.metric(
+            "Theta (Θ)", 
+            f"{greeks['theta']:.2f}",
+            help="Time decay: ΔOption Price / ΔTime (per day)"
+        )
+    
+    with col4:
+        st.metric(
+            "Vega (ν)", 
+            f"{greeks['vega']:.2f}",
+            help="Volatility sensitivity: ΔOption Price / ΔVolatility"
+        )
+    
+    with col5:
+        st.metric(
+            "Rho (ρ)", 
+            f"{greeks['rho']:.3f}",
+            help="Interest rate sensitivity: ΔOption Price / ΔRate"
+        )
+    
+    # Greeks scenario analysis
+    st.markdown("#### Greeks Scenario Analysis")
+    
+    # Price range for sensitivity analysis
+    price_range = np.linspace(current_price * 0.8, current_price * 1.2, 50)
+    scenario_greeks = []
+    
+    for price in price_range:
+        scenario_greek = calculate_black_scholes_greeks(
+            price, strike_price, 0.25, 0.05, 0.25, "put"
+        )
+        scenario_greeks.append(scenario_greek)
+    
+    # Plot Greeks vs underlying price
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=price_range,
+        y=[g['delta'] for g in scenario_greeks],
+        name='Delta',
+        line=dict(color='blue')
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=price_range,
+        y=[g['gamma'] * 10 for g in scenario_greeks],  # Scale for visibility
+        name='Gamma (×10)',
+        line=dict(color='red')
+    ))
+    
+    fig.update_layout(
+        title="Greeks vs Underlying Price",
+        xaxis_title="Underlying Price ($)",
+        yaxis_title="Greek Value",
+        height=400
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 
 if __name__ == "__main__":
