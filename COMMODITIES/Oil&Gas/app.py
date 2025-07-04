@@ -347,22 +347,22 @@ def display_results():
         )
     
     # Create tabs for different views
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Price Chart", "📊 Payoff Diagram", "🎯 P&L Distribution", "📋 Risk Metrics", "🔢 Greeks Analysis"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Price Chart", "📊 Payoff Diagram", "🎯 P&L Distribution", "📋 Risk Metrics", "🔢 Greeks Analysis"])
 
-with tab1:
-    display_price_chart()
+    with tab1:
+        display_price_chart()
     
-with tab2:
-    display_payoff_diagram()
+    with tab2:
+        display_payoff_diagram()
     
-with tab3:
-    display_pnl_distribution()
+    with tab3:
+        display_pnl_distribution()
     
-with tab4:
-    display_risk_metrics()
+    with tab4:
+        display_risk_metrics()
         
-with tab5:
-    display_greeks_analysis()
+    with tab5:
+        display_greeks_analysis()
 
 def display_price_chart():
     """Display historical price chart."""
