@@ -264,6 +264,10 @@ def compare_hedging_effectiveness(hedged_sim: np.ndarray, unhedged_sim: np.ndarr
     hedged_stats = calculate_simulation_statistics(hedged_sim)
     unhedged_stats = calculate_simulation_statistics(unhedged_sim)
     
+    # Calculate Sharpe ratios
+    hedged_sharpe = hedged_stats['mean'] / hedged_stats['std'] if hedged_stats['std'] > 0 else 0
+    unhedged_sharpe = unhedged_stats['mean'] / unhedged_stats['std'] if unhedged_stats['std'] > 0 else 0
+    
     # Calculate comparison metrics
     comparison = {
         'hedged_mean': hedged_stats['mean'],
@@ -272,7 +276,9 @@ def compare_hedging_effectiveness(hedged_sim: np.ndarray, unhedged_sim: np.ndarr
         'hedged_std': hedged_stats['std'],
         'unhedged_std': unhedged_stats['std'],
         'volatility_reduction': (unhedged_stats['std'] - hedged_stats['std']) / unhedged_stats['std'],
-        'sharpe_improvement': (hedged_stats['mean'] / hedged_stats['std']) - (unhedged_stats['mean'] / unhedged_stats['std']),
+        'hedged_sharpe': hedged_sharpe,
+        'unhedged_sharpe': unhedged_sharpe,
+        'sharpe_improvement': hedged_sharpe - unhedged_sharpe,
         'hedged_prob_loss': hedged_stats['prob_loss'],
         'unhedged_prob_loss': unhedged_stats['prob_loss'],
         'loss_prob_reduction': unhedged_stats['prob_loss'] - hedged_stats['prob_loss']
