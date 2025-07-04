@@ -597,7 +597,7 @@ def display_pnl_distribution():
     effectiveness = compare_hedging_effectiveness(sim_results['hedged_pnl'], sim_results['unhedged_pnl'])
     
     st.markdown("#### Hedging Effectiveness")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric(
@@ -618,6 +618,14 @@ def display_pnl_distribution():
             "Expected P&L Change",
             f"${float(effectiveness['mean_difference']):,.0f}",
             help="Change in expected P&L from hedging"
+        )
+    
+    with col4:
+        st.metric(
+            "Sharpe Ratio Change",
+            f"{float(effectiveness['sharpe_improvement']):.3f}",
+            delta=f"Hedged: {float(effectiveness['hedged_sharpe']):.3f}",
+            help="Improvement in risk-adjusted returns (P&L/Volatility)"
         )
 
 
@@ -651,7 +659,7 @@ def display_risk_metrics():
     # Additional metrics
     st.markdown("#### Additional Risk Information")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         delta_exp_val = float(st.session_state.delta_exposure)
@@ -669,6 +677,29 @@ def display_risk_metrics():
             help="Percentage of position that is hedged"
         )
     
+    with col3:
+        # Get Sharpe ratios from the risk metrics
+        hedged_sharpe_row = st.session_state.hedged_risk[st.session_state.hedged_risk['Metric'] == 'Sharpe Ratio']
+        unhedged_sharpe_row = st.session_state.unhedged_risk[st.session_state.unhedged_risk['Metric'] == 'Sharpe Ratio']
+        
+        if not hedged_sharpe_row.empty and not unhedged_sharpe_row.empty:
+            hedged_sharpe = float(hedged_sharpe_row['Value'].iloc[0])
+            unhedged_sharpe = float(unhedged_sharpe_row['Value'].iloc[0])
+            sharpe_change = hedged_sharpe - unhedged_sharpe
+            
+            st.metric(
+                "Sharpe Ratio (Hedged)",
+                f"{hedged_sharpe:.3f}",
+                delta=f"Change: {sharpe_change:+.3f}",
+                help="Risk-adjusted return measure (Expected P&L / Volatility)"
+            )
+        else:
+            st.metric(
+                "Sharpe Ratio",
+                "N/A",
+                help="Risk-adjusted return measure (Expected P&L / Volatility)"
+            )
+    
     # Risk interpretation
     with st.expander("📖 Risk Metrics Explanation"):
         st.markdown(f"""
@@ -680,10 +711,36 @@ def display_risk_metrics():
         
         **Volatility**: Standard deviation of P&L outcomes
         
+        **Sharpe Ratio**: Risk-adjusted return measure (Expected P&L ÷ Volatility)
+        - Higher values indicate better risk-adjusted performance
+        - Positive values mean positive expected return per unit of risk
+        - Comparison shows if hedging improves risk-adjusted returns
+        
         **Delta Exposure**: Sensitivity to price changes after hedging
         
         **Improvement**: Positive values indicate hedging reduces risk
         """)
+        
+        # Add Sharpe ratio interpretation
+        hedged_sharpe_row = st.session_state.hedged_risk[st.session_state.hedged_risk['Metric'] == 'Sharpe Ratio']
+        unhedged_sharpe_row = st.session_state.unhedged_risk[st.session_state.unhedged_risk['Metric'] == 'Sharpe Ratio']
+        
+        if not hedged_sharpe_row.empty and not unhedged_sharpe_row.empty:
+            hedged_sharpe = float(hedged_sharpe_row['Value'].iloc[0])
+            unhedged_sharpe = float(unhedged_sharpe_row['Value'].iloc[0])
+            
+            st.markdown("---")
+            st.markdown("**Sharpe Ratio Analysis:**")
+            
+            if hedged_sharpe > unhedged_sharpe:
+                st.success(f"✅ **Hedging improves risk-adjusted returns** (Sharpe: {unhedged_sharpe:.3f} → {hedged_sharpe:.3f})")
+                st.markdown("The hedge provides better return per unit of risk taken.")
+            elif hedged_sharpe < unhedged_sharpe:
+                st.warning(f"⚠️ **Hedging reduces risk-adjusted returns** (Sharpe: {unhedged_sharpe:.3f} → {hedged_sharpe:.3f})")
+                st.markdown("The hedge reduces risk but at a cost to risk-adjusted performance.")
+            else:
+                st.info(f"➡️ **Hedging maintains risk-adjusted returns** (Sharpe: {hedged_sharpe:.3f})")
+                st.markdown("The hedge provides risk reduction without impacting risk-adjusted performance.")
 
 
 if __name__ == "__main__":
