@@ -40,7 +40,7 @@ streamlit run app.py
 ## Project Structure
 
 ```
-Oil-Gas/
+Oil&Gas/
 ├── app.py                 # Main Streamlit app
 ├── hedging/
 │   ├── data.py           # Price data fetching
