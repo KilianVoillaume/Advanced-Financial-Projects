@@ -11,42 +11,62 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict
 
 
-# Commodity ticker mapping for Yahoo Finance
+# Commodity ticker mapping for Yahoo Finance with basis adjustments
 COMMODITY_TICKERS: Dict[str, str] = {
-    "WTI": "CL=F",
-    "Brent": "BZ=F", 
-    "Natural Gas": "NG=F"
+    "WTI Cushing": "CL=F",
+    "Brent Dated": "BZ=F", 
+    "Natural Gas (Henry Hub)": "NG=F"
+}
+
+# Basis adjustments (in $/barrel or $/MMBtu)
+BASIS_ADJUSTMENTS: Dict[str, float] = {
+    "WTI Cushing": 0.0,        # Benchmark
+    "WTI Houston": 2.50,       # Typical Houston premium
+    "WTI Midland": 1.80,       # Permian Basin pricing
+    "WTI Bakken": -2.00,       # North Dakota discount
+    "Mars Crude": -1.20,       # Gulf Coast heavy crude discount
+    "Brent Dated": 0.0,        # Benchmark
+    "Brent Forties": 0.30,     # North Sea premium
+    "Dubai Crude": -1.50,      # Middle East discount to Brent
+    "Natural Gas (Henry Hub)": 0.0,     # Benchmark
+    "Natural Gas (Waha Hub)": -0.45,    # Permian gas discount
+    "Natural Gas (AECO)": -0.30,        # Canadian gas discount
 }
 
 
 def get_prices(commodity: str, period: str = "1y") -> pd.Series:
     """
-    Fetch historical prices for a specified commodity.
+    Fetch historical prices for a specified commodity with basis adjustments.
     
     Args:
-        commodity (str): Commodity name ("WTI", "Brent", "Natural Gas")
+        commodity (str): Commodity name (e.g., "WTI Houston", "Brent Dated")
         period (str): Time period for historical data (default: "1y")
-                     Valid periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
     
     Returns:
-        pd.Series: Time series of daily closing prices
-        
-    Raises:
-        KeyError: If commodity is not supported
-        ValueError: If no data is retrieved
+        pd.Series: Time series of daily closing prices with basis adjustments
     """
     
-    # Validate commodity input
-    if commodity not in COMMODITY_TICKERS:
-        available_commodities = ", ".join(COMMODITY_TICKERS.keys())
-        raise KeyError(f"Commodity '{commodity}' not supported. Available: {available_commodities}")
+    # Find base commodity ticker
+    base_commodity = None
+    for base, ticker in COMMODITY_TICKERS.items():
+        if commodity.startswith(base.split()[0]):  # Match "WTI" in "WTI Houston"
+            base_commodity = base
+            break
     
-    # Get Yahoo Finance ticker
-    ticker = COMMODITY_TICKERS[commodity]
+    if base_commodity is None:
+        # Try exact match
+        if commodity in COMMODITY_TICKERS:
+            base_commodity = commodity
+        else:
+            available_commodities = list(COMMODITY_TICKERS.keys()) + list(BASIS_ADJUSTMENTS.keys())
+            raise KeyError(f"Commodity '{commodity}' not supported. Available: {available_commodities}")
+    
+    # Get Yahoo Finance ticker for base commodity
+    ticker = COMMODITY_TICKERS[base_commodity]
     
     try:
         # Fetch historical data
-        print(f"Fetching data for {commodity} ({ticker})...")
+        print(f"Fetching data for {commodity} using base {base_commodity} ({ticker})...")
         commodity_data = yf.download(ticker, period=period, progress=False)
         
         # Extract closing prices
@@ -72,9 +92,16 @@ def get_prices(commodity: str, period: str = "1y") -> pd.Series:
         
         if prices.empty:
             raise ValueError(f"No valid numeric price data for {commodity}")
+        
+        # Apply basis adjustment
+        basis_adjustment = BASIS_ADJUSTMENTS.get(commodity, 0.0)
+        adjusted_prices = prices + basis_adjustment
+        
+        print(f"Successfully fetched {len(adjusted_prices)} price points for {commodity}")
+        if basis_adjustment != 0:
+            print(f"Applied basis adjustment: {basis_adjustment:+.2f}")
             
-        print(f"Successfully fetched {len(prices)} price points for {commodity}")
-        return prices
+        return adjusted_prices
         
     except Exception as e:
         print(f"Error fetching data for {commodity}: {str(e)}")
@@ -83,23 +110,20 @@ def get_prices(commodity: str, period: str = "1y") -> pd.Series:
 
 def get_current_price(commodity: str) -> float:
     """
-    Get the most recent price for a commodity.
+    Get the most recent price for a commodity with basis adjustments.
     
     Args:
-        commodity (str): Commodity name ("WTI", "Brent", "Natural Gas")
+        commodity (str): Commodity name (e.g., "WTI Houston", "Brent Dated")
     
     Returns:
-        float: Most recent closing price
-        
-    Raises:
-        KeyError: If commodity is not supported
-        ValueError: If no current price is available
+        float: Most recent closing price with basis adjustment
     """
     
     try:
         # Validate commodity first
-        if not validate_commodity(commodity):
-            available_commodities = ", ".join(COMMODITY_TICKERS.keys())
+        all_commodities = list(COMMODITY_TICKERS.keys()) + list(BASIS_ADJUSTMENTS.keys())
+        if commodity not in all_commodities:
+            available_commodities = ", ".join(all_commodities)
             raise KeyError(f"Commodity '{commodity}' not supported. Available: {available_commodities}")
         
         # Get recent prices (last 5 days to ensure we have data)
@@ -108,7 +132,7 @@ def get_current_price(commodity: str) -> float:
         if prices.empty:
             raise ValueError(f"No recent price data available for {commodity}")
         
-        # Return most recent price
+        # Return most recent price (already includes basis adjustment from get_prices)
         current_price = float(prices.iloc[-1])
         
         # Ensure it's a valid number
@@ -120,9 +144,11 @@ def get_current_price(commodity: str) -> float:
     except Exception as e:
         # If there's any error, provide a fallback based on commodity
         fallback_prices = {
-            "WTI": 75.0,
-            "Brent": 78.0, 
-            "Natural Gas": 3.5
+            "WTI Cushing": 75.0,
+            "WTI Houston": 77.50,
+            "WTI Midland": 76.80,
+            "Brent Dated": 78.0,
+            "Natural Gas (Henry Hub)": 3.5
         }
         
         if commodity in fallback_prices:
@@ -182,12 +208,12 @@ def validate_commodity(commodity: str) -> bool:
 
 def get_available_commodities() -> list:
     """
-    Get list of available commodities.
+    Get list of available commodities including basis locations.
     
     Returns:
-        list: List of supported commodity names
+        list: List of supported commodity names with basis adjustments
     """
-    return list(COMMODITY_TICKERS.keys())
+    return list(BASIS_ADJUSTMENTS.keys())
 
 
 # Example usage and testing
