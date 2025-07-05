@@ -13,24 +13,16 @@ from typing import Optional, Dict
 
 # Commodity ticker mapping for Yahoo Finance with basis adjustments
 COMMODITY_TICKERS: Dict[str, str] = {
-    "WTI Cushing": "CL=F",
-    "Brent Dated": "BZ=F", 
-    "Natural Gas (Henry Hub)": "NG=F"
+    "WTI Crude Oil": "CL=F",           # WTI Crude Oil Futures
+    "Brent Crude Oil": "BZ=F",        # Brent Crude Oil Futures
+    "Natural Gas": "NG=F"             # Natural Gas Futures
 }
 
 # Basis adjustments (in $/barrel or $/MMBtu)
 BASIS_ADJUSTMENTS: Dict[str, float] = {
-    "WTI Cushing": 0.0,        # Benchmark
-    "WTI Houston": 2.50,       # Typical Houston premium
-    "WTI Midland": 1.80,       # Permian Basin pricing
-    "WTI Bakken": -2.00,       # North Dakota discount
-    "Mars Crude": -1.20,       # Gulf Coast heavy crude discount
-    "Brent Dated": 0.0,        # Benchmark
-    "Brent Forties": 0.30,     # North Sea premium
-    "Dubai Crude": -1.50,      # Middle East discount to Brent
-    "Natural Gas (Henry Hub)": 0.0,     # Benchmark
-    "Natural Gas (Waha Hub)": -0.45,    # Permian gas discount
-    "Natural Gas (AECO)": -0.30,        # Canadian gas discount
+    "WTI Crude Oil": 0.0,        # Benchmark
+    "Brent Crude Oil": 0.0,      # Benchmark  
+    "Natural Gas": 0.0           # Benchmark
 }
 
 
@@ -134,11 +126,9 @@ def get_current_price(commodity: str) -> float:
     except Exception as e:
         # If there's any error, provide a fallback based on commodity
         fallback_prices = {
-            "WTI Cushing": 75.0,
-            "WTI Houston": 77.50,
-            "WTI Midland": 76.80,
-            "Brent Dated": 78.0,
-            "Natural Gas (Henry Hub)": 3.5
+            "WTI Crude Oil": 75.0,
+            "Brent Crude Oil": 78.0,
+            "Natural Gas": 3.5
         }
         
         if commodity in fallback_prices:
