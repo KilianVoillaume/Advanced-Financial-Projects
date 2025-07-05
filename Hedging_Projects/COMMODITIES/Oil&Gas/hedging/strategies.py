@@ -2,13 +2,16 @@
 hedging/strategies.py
 
 Module for hedge payoff calculations for different hedging strategies.
-Supports Futures and Options hedging with payoff diagram generation.
+Supports Futures, Options, and Crack Spread hedging with payoff diagram generation.
 """
 
 import pandas as pd
 import numpy as np
 from typing import Dict, Tuple, Optional
 from scipy.stats import norm
+
+# Import crack spread functionality
+from .crack_spreads import compute_crack_spread_hedge, compute_crack_spread_payoff_diagram, get_current_crack_spread
 
 
 def compute_futures_hedge(prices: pd.Series, position: float, hedge_ratio: float) -> pd.Series:
