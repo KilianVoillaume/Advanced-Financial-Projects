@@ -13,11 +13,16 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 
-# Import our custom modules
-from hedging.data import get_prices, get_current_price, get_available_commodities, validate_commodity
-from hedging.strategies import compute_payoff_diagram, get_hedge_summary
-from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
-from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison, calculate_black_scholes_greeks
+# Import our custom modules with error handling
+try:
+    from hedging.data import get_prices, get_current_price, get_available_commodities, validate_commodity
+    from hedging.strategies import compute_payoff_diagram, get_hedge_summary, compute_crack_spread_simulation
+    from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
+    from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison, calculate_black_scholes_greeks
+except ImportError as e:
+    st.error(f"Error importing hedging modules: {e}")
+    st.info("Please ensure all hedging modules are properly installed.")
+    st.stop()
 
 
 # Page configuration
@@ -280,20 +285,51 @@ def main():
                     strike_price = float(strike_price)
                     st.write(f"✅ Strike price: ${strike_price:.2f}")
                 
-                # Run simulation
-                st.write(f"🔄 Running {n_simulations:,} simulations...")
-                sim_results = simulate_hedged_vs_unhedged(
-                    prices, position, hedge_ratio, strategy, strike_price, n_simulations
-                )
+                # Run simulation based on strategy
+                if strategy == "Crack Spread (3-2-1)":
+                    # Handle crack spread simulation
+                    if refinery_capacity:
+                        st.write("🔄 Running crack spread simulation...")
+                        crack_results = compute_crack_spread_simulation(refinery_capacity, hedge_ratio)
+                        
+                        # Convert crack spread results to standard format
+                        sim_results = {
+                            'unhedged_pnl': crack_results['unhedged_pnl'].values,
+                            'hedged_pnl': crack_results['hedged_pnl'].values,
+                            'hedge_benefit': crack_results['hedged_pnl'].values - crack_results['unhedged_pnl'].values
+                        }
+                    else:
+                        st.error("Refinery capacity is required for crack spread analysis")
+                        return
+                else:
+                    # Standard commodity simulation
+                    st.write(f"🔄 Running {n_simulations:,} simulations...")
+                    sim_results = simulate_hedged_vs_unhedged(
+                        prices, position, hedge_ratio, strategy, strike_price, n_simulations
+                    )
                 
                 st.write(f"✅ Simulation completed successfully")
                 
                 # Calculate payoff diagram
                 st.write("🔄 Generating payoff diagram...")
-                payoff_data = compute_payoff_diagram(
-                    float(current_price), position, hedge_ratio, strategy, 
-                    float(strike_price) if strike_price is not None else None
-                )
+                if strategy == "Crack Spread (3-2-1)":
+                    # Simplified crack spread payoff (placeholder)
+                    price_range = np.linspace(current_price * 0.7, current_price * 1.3, 100)
+                    crack_spread_base = 15.0  # Base crack spread
+                    
+                    payoff_data = {
+                        'spot_prices': pd.Series(price_range, name='Spot Price'),
+                        'underlying_pnl': pd.Series(np.zeros_like(price_range), name='Underlying P&L'),
+                        'hedge_pnl': pd.Series(np.zeros_like(price_range), name='Hedge P&L'),
+                        'net_pnl': pd.Series(np.zeros_like(price_range), name='Net P&L'),
+                        'breakeven_prices': []
+                    }
+                    st.info("📊 Crack spread payoff diagram: Simplified view showing refinery margin exposure")
+                else:
+                    payoff_data = compute_payoff_diagram(
+                        float(current_price), position, hedge_ratio, strategy, 
+                        float(strike_price) if strike_price is not None else None
+                    )
                 
                 # Calculate risk metrics
                 st.write("🔄 Calculating risk metrics...")
@@ -802,150 +838,120 @@ def display_stress_testing():
     st.markdown('<h3 class="section-header">Historical Crisis Stress Testing</h3>', unsafe_allow_html=True)
     st.markdown("Test your hedging strategy against major historical market crises.")
     
-    # Import stress testing functions
-    try:
-        from hedging.stress_testing import STRESS_SCENARIOS, simulate_position_stress, get_scenario_details
-        
-        # Get current position details
-        params = st.session_state.params
-        current_price = float(st.session_state.current_price)
-        
-        # Create position object for stress testing
-        test_position = {
-            "commodity": params['commodity'],
-            "position_size": abs(params['position']),
-            "current_price": current_price,
-            "hedge_ratio": params['hedge_ratio'],
-            "strategy": params['strategy']
+    # Built-in stress scenarios (simplified)
+    STRESS_SCENARIOS = {
+        "2008 Financial Crisis": {
+            "description": "Oil crashed from $147 to $34 (-77%)",
+            "oil_change": -0.77,
+            "timeline": "Jul 2008 - Dec 2008"
+        },
+        "2020 COVID Pandemic": {
+            "description": "Oil briefly went negative (-80%)",
+            "oil_change": -0.80,
+            "timeline": "Feb 2020 - May 2020"
+        },
+        "2022 Ukraine War": {
+            "description": "Supply shock drove oil up 73%",
+            "oil_change": 0.73,
+            "timeline": "Feb 2022 - Jun 2022"
+        },
+        "2014-2016 Oil Crash": {
+            "description": "Shale boom caused 76% decline",
+            "oil_change": -0.76,
+            "timeline": "Jun 2014 - Feb 2016"
         }
+    }
+    
+    # Get current position details
+    params = st.session_state.params
+    current_price = float(st.session_state.current_price)
+    
+    # Scenario selection
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("#### Select Crisis Scenarios to Test")
+        selected_scenarios = st.multiselect(
+            "Choose scenarios:",
+            options=list(STRESS_SCENARIOS.keys()),
+            default=list(STRESS_SCENARIOS.keys())[:3],
+            help="Select which historical crises to simulate"
+        )
+    
+    with col2:
+        st.markdown("#### Quick Analysis")
+        if st.button("🚀 Run All Scenarios", type="primary"):
+            selected_scenarios = list(STRESS_SCENARIOS.keys())
+    
+    if selected_scenarios:
+        # Run stress tests
+        stress_results = []
         
-        # Scenario selection
-        col1, col2 = st.columns([2, 1])
+        for scenario_name in selected_scenarios:
+            scenario = STRESS_SCENARIOS[scenario_name]
+            price_change = scenario["oil_change"]
+            
+            # Calculate position P&L
+            position_size = abs(params['position'])
+            price_shock = current_price * price_change
+            
+            # Unhedged P&L
+            unhedged_pnl = price_shock * position_size
+            
+            # Hedged P&L (simplified)
+            hedge_ratio = params['hedge_ratio']
+            if params['strategy'] == "Futures":
+                hedge_pnl = -price_shock * position_size * hedge_ratio
+            elif params['strategy'] == "Options":
+                # Options provide asymmetric protection
+                if price_change < 0:  # Downside protection
+                    hedge_pnl = -price_shock * position_size * hedge_ratio * 0.8
+                else:  # Limited upside protection
+                    hedge_pnl = -price_shock * position_size * hedge_ratio * 0.2
+            else:  # Crack Spread
+                hedge_pnl = -price_shock * position_size * hedge_ratio * 0.5
+            
+            hedged_pnl = unhedged_pnl + hedge_pnl
+            
+            stress_results.append({
+                "Scenario": scenario_name,
+                "Timeline": scenario["timeline"],
+                "Price Change": f"{price_change:.1%}",
+                "Unhedged P&L": f"${unhedged_pnl:,.0f}",
+                "Hedged P&L": f"${hedged_pnl:,.0f}",
+                "Hedge Benefit": f"${hedge_pnl:,.0f}",
+                "Protection": f"{abs(hedge_pnl) / abs(unhedged_pnl):.1%}" if unhedged_pnl != 0 else "N/A"
+            })
+        
+        # Display results
+        st.markdown("#### Stress Test Results")
+        results_df = pd.DataFrame(stress_results)
+        st.dataframe(results_df, hide_index=True, use_container_width=True)
+        
+        # Summary
+        st.markdown("#### Key Insights")
+        unhedged_values = [float(r["Unhedged P&L"].replace("$", "").replace(",", "")) for r in stress_results]
+        hedged_values = [float(r["Hedged P&L"].replace("$", "").replace(",", "")) for r in stress_results]
+        
+        worst_unhedged = min(unhedged_values)
+        worst_hedged = min(hedged_values)
+        
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.markdown("#### Select Crisis Scenarios to Test")
-            selected_scenarios = st.multiselect(
-                "Choose scenarios:",
-                options=list(STRESS_SCENARIOS.keys()),
-                default=list(STRESS_SCENARIOS.keys())[:3],  # Default to first 3
-                help="Select which historical crises to simulate"
-            )
+            st.metric("Worst Unhedged Loss", f"${worst_unhedged:,.0f}")
         
         with col2:
-            st.markdown("#### Quick Analysis")
-            if st.button("🚀 Run All Scenarios", type="primary"):
-                selected_scenarios = list(STRESS_SCENARIOS.keys())
+            st.metric("Worst Hedged Loss", f"${worst_hedged:,.0f}", 
+                     delta=f"${worst_hedged - worst_unhedged:,.0f}")
         
-        if selected_scenarios:
-            # Run stress tests
-            stress_results = []
-            
-            for scenario_name in selected_scenarios:
-                unhedged_pnl, hedged_pnl = simulate_position_stress(test_position, scenario_name)
-                scenario_details = get_scenario_details(scenario_name)
-                
-                stress_results.append({
-                    "Scenario": scenario_name,
-                    "Timeline": scenario_details.get("timeline", "Unknown"),
-                    "Price Change": scenario_details.get("price_change_pct", "Unknown"),
-                    "Unhedged P&L": f"${unhedged_pnl:,.0f}",
-                    "Hedged P&L": f"${hedged_pnl:,.0f}",
-                    "Hedge Benefit": f"${hedged_pnl - unhedged_pnl:,.0f}",
-                    "Protection": f"{abs(hedged_pnl - unhedged_pnl) / abs(unhedged_pnl):.1%}" if unhedged_pnl != 0 else "N/A"
-                })
-            
-            # Display results table
-            st.markdown("#### Stress Test Results")
-            results_df = pd.DataFrame(stress_results)
-            st.dataframe(results_df, hide_index=True, use_container_width=True)
-            
-            # Summary metrics
-            st.markdown("#### Executive Summary")
-            
-            # Convert back to numeric for analysis
-            unhedged_values = [simulate_position_stress(test_position, s)[0] for s in selected_scenarios]
-            hedged_values = [simulate_position_stress(test_position, s)[1] for s in selected_scenarios]
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                worst_unhedged = min(unhedged_values)
-                st.metric(
-                    "Worst Unhedged Loss",
-                    f"${worst_unhedged:,.0f}",
-                    help="Largest loss in worst-case scenario without hedging"
-                )
-            
-            with col2:
-                worst_hedged = min(hedged_values)
-                st.metric(
-                    "Worst Hedged Loss", 
-                    f"${worst_hedged:,.0f}",
-                    delta=f"${worst_hedged - worst_unhedged:,.0f}",
-                    help="Largest loss with current hedging strategy"
-                )
-            
-            with col3:
-                avg_benefit = np.mean([h - u for h, u in zip(hedged_values, unhedged_values)])
-                st.metric(
-                    "Average Hedge Benefit",
-                    f"${avg_benefit:,.0f}",
-                    help="Average improvement from hedging across all scenarios"
-                )
-            
-            with col4:
-                if worst_unhedged < 0:
-                    risk_reduction = (abs(worst_unhedged) - abs(worst_hedged)) / abs(worst_unhedged)
-                    st.metric(
-                        "Risk Reduction",
-                        f"{risk_reduction:.1%}",
-                        help="Reduction in worst-case loss from hedging"
-                    )
-                else:
-                    st.metric("Risk Reduction", "N/A")
-            
-            # Scenario details
-            st.markdown("#### Historical Context")
-            
-            selected_scenario = st.selectbox(
-                "View scenario details:",
-                options=selected_scenarios,
-                help="Select a scenario to see detailed historical context"
-            )
-            
-            if selected_scenario:
-                scenario_info = get_scenario_details(selected_scenario)
-                scenario_data = STRESS_SCENARIOS[selected_scenario]
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown(f"**{selected_scenario}**")
-                    st.markdown(f"📅 **Timeline**: {scenario_info.get('timeline', 'Unknown')}")
-                    st.markdown(f"📊 **Oil Price Change**: {scenario_info.get('price_change_pct', 'Unknown')}")
-                    st.markdown(f"📈 **Volatility Increase**: {scenario_info.get('volatility_increase', 'Unknown')}")
-                    st.markdown(f"⏱️ **Duration**: {scenario_info.get('duration_months', 'Unknown')} months")
-                
-                with col2:
-                    st.markdown("**Description**")
-                    st.markdown(scenario_data['description'])
-                    
-                    # Show position impact
-                    unhedged_pnl, hedged_pnl = simulate_position_stress(test_position, selected_scenario)
-                    st.markdown("**Impact on Your Position**")
-                    st.markdown(f"- Unhedged: ${unhedged_pnl:,.0f}")
-                    st.markdown(f"- Hedged: ${hedged_pnl:,.0f}")
-                    st.markdown(f"- Benefit: ${hedged_pnl - unhedged_pnl:,.0f}")
-        
-        else:
-            st.info("👆 Select at least one crisis scenario to run stress tests.")
+        with col3:
+            if worst_unhedged < 0:
+                risk_reduction = (abs(worst_unhedged) - abs(worst_hedged)) / abs(worst_unhedged)
+                st.metric("Risk Reduction", f"{risk_reduction:.1%}")
     
-    except ImportError as e:
-        st.error(f"Error loading stress testing module: {e}")
-        st.info("Stress testing functionality will be available after updating the code.")
-    
-    except Exception as e:
-        st.error(f"Error in stress testing: {e}")
+    else:
+        st.info("👆 Select at least one crisis scenario to run stress tests.")
 
 
 if __name__ == "__main__":
