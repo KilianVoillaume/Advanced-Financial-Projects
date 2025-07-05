@@ -146,7 +146,7 @@ def main():
         st.markdown("### 🛡️ Hedging Strategy")
         strategy = st.selectbox(
             "Hedging Strategy:",
-            options=["Futures", "Options", "Crack Spread (3-2-1)"],
+            options=["Futures", "Options"],  # ← REMOVED "Crack Spread (3-2-1)"
             index=0,
             help="Choose hedging instrument"
         )
@@ -161,32 +161,6 @@ def main():
             help="Percentage of position to hedge (0.0 = no hedge, 1.0 = full hedge)"
         )
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Crack spread specific parameters
-        refinery_capacity = None
-        if strategy == "Crack Spread (3-2-1)":
-            st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
-            st.markdown("### 🏭 Refinery Parameters")
-            
-            refinery_capacity = st.number_input(
-                "Refinery Capacity (barrels/day):",
-                min_value=1000.0,
-                max_value=500000.0,
-                value=100000.0,
-                step=5000.0,
-                help="Daily refinery processing capacity"
-            )
-            
-            # Show current crack spread
-            try:
-                from hedging.crack_spreads import get_current_crack_spread
-                current_crack = get_current_crack_spread()
-                st.metric("Current 3-2-1 Crack Spread", f"${current_crack:.2f}/barrel")
-            except:
-                st.metric("Current 3-2-1 Crack Spread", "$15.00/barrel (estimated)")
-            
-            st.caption("💡 3-2-1 Crack Spread: 3 barrels crude → 2 barrels gasoline + 1 barrel heating oil")
-            st.markdown('</div>', unsafe_allow_html=True)
         
         # Options-specific parameters (enhanced UI from update)
         strike_price = None
@@ -267,125 +241,88 @@ def main():
     
     # Main content area
     if run_simulation:
-        st.session_state.simulation_run = True
-        
-        with st.spinner("Loading price data and running simulation..."):
-            try:
-                # Fetch data with error handling
-                st.write(f"🔄 Fetching {commodity} price data...")
-                prices = get_prices(commodity)
-                st.write(f"✅ Successfully loaded {len(prices)} price points")
-                
-                st.write(f"🔄 Getting current {commodity} price...")
-                current_price = float(get_current_price(commodity))
-                st.write(f"✅ Current price: ${current_price:.2f}")
-                
-                # Ensure strike_price is float for options
-                if strategy == "Options" and strike_price is not None:
-                    strike_price = float(strike_price)
-                    st.write(f"✅ Strike price: ${strike_price:.2f}")
-                
-                # Run simulation based on strategy
-                if strategy == "Crack Spread (3-2-1)":
-                    # Handle crack spread simulation
-                    if refinery_capacity:
-                        st.write("🔄 Running crack spread simulation...")
-                        crack_results = compute_crack_spread_simulation(refinery_capacity, hedge_ratio)
-                        
-                        # Convert crack spread results to standard format
-                        sim_results = {
-                            'unhedged_pnl': crack_results['unhedged_pnl'].values,
-                            'hedged_pnl': crack_results['hedged_pnl'].values,
-                            'hedge_benefit': crack_results['hedged_pnl'].values - crack_results['unhedged_pnl'].values
-                        }
-                    else:
-                        st.error("Refinery capacity is required for crack spread analysis")
-                        return
-                else:
-                    # Standard commodity simulation
-                    st.write(f"🔄 Running {n_simulations:,} simulations...")
-                    sim_results = simulate_hedged_vs_unhedged(
-                        prices, position, hedge_ratio, strategy, strike_price, n_simulations
-                    )
-                
-                st.write(f"✅ Simulation completed successfully")
-                
-                # Calculate payoff diagram
-                st.write("🔄 Generating payoff diagram...")
-                if strategy == "Crack Spread (3-2-1)":
-                    # Simplified crack spread payoff (placeholder)
-                    price_range = np.linspace(current_price * 0.7, current_price * 1.3, 100)
-                    crack_spread_base = 15.0  # Base crack spread
-                    
-                    payoff_data = {
-                        'spot_prices': pd.Series(price_range, name='Spot Price'),
-                        'underlying_pnl': pd.Series(np.zeros_like(price_range), name='Underlying P&L'),
-                        'hedge_pnl': pd.Series(np.zeros_like(price_range), name='Hedge P&L'),
-                        'net_pnl': pd.Series(np.zeros_like(price_range), name='Net P&L'),
-                        'breakeven_prices': []
-                    }
-                    st.info("📊 Crack spread payoff diagram: Simplified view showing refinery margin exposure")
-                else:
-                    payoff_data = compute_payoff_diagram(
-                        float(current_price), position, hedge_ratio, strategy, 
-                        float(strike_price) if strike_price is not None else None
-                    )
-                
-                # Calculate risk metrics
-                st.write("🔄 Calculating risk metrics...")
-                hedged_risk = calculate_risk_metrics(sim_results['hedged_pnl'], confidence)
-                unhedged_risk = calculate_risk_metrics(sim_results['unhedged_pnl'], confidence)
-                
-                # Calculate delta exposure
-                delta_exposure = calculate_delta_exposure(
-                    prices, position, hedge_ratio, strategy, 
-                    float(strike_price) if strike_price is not None else None
-                )
-                
-                st.write("✅ All calculations completed successfully!")
-                
-                # Calculate delta exposure
-                delta_exposure = calculate_delta_exposure(
-                    prices, position, hedge_ratio, strategy, 
-                    float(strike_price) if strike_price is not None else None
-                )
-                
-                # Store results in session state
-                st.session_state.prices = prices
-                st.session_state.current_price = current_price
-                st.session_state.sim_results = sim_results
-                st.session_state.payoff_data = payoff_data
-                st.session_state.hedged_risk = hedged_risk
-                st.session_state.unhedged_risk = unhedged_risk
-                st.session_state.delta_exposure = delta_exposure
-                st.session_state.params = {
-                    'commodity': commodity,
-                    'position': position,
-                    'strategy': strategy,
-                    'hedge_ratio': hedge_ratio,
-                    'strike_price': strike_price,
-                    'confidence': confidence
-                }
-                
-            except Exception as e:
-                st.error(f"❌ Error running simulation: {str(e)}")
-                st.error("**Debug Information:**")
-                st.error(f"- Commodity: {commodity}")
-                st.error(f"- Strategy: {strategy}")
-                st.error(f"- Position: {position}")
-                st.error(f"- Hedge Ratio: {hedge_ratio}")
-                if strategy == "Options":
-                    st.error(f"- Strike Price: {strike_price}")
-                st.error(f"- Error Type: {type(e).__name__}")
-                
-                # Show suggestion
-                st.info("💡 **Suggestions:**")
-                st.info("- Try a different commodity (WTI usually works best)")
-                st.info("- Check your internet connection") 
-                st.info("- Try with a smaller position size")
-                st.info("- Switch to Futures strategy if Options is failing")
-                
-                st.session_state.simulation_run = False
+    st.session_state.simulation_run = True
+    
+    with st.spinner("Loading price data and running simulation..."):
+        try:
+            # Fetch data with error handling
+            st.write(f"🔄 Fetching {commodity} price data...")
+            prices = get_prices(commodity)
+            st.write(f"✅ Successfully loaded {len(prices)} price points")
+            
+            st.write(f"🔄 Getting current {commodity} price...")
+            current_price = float(get_current_price(commodity))
+            st.write(f"✅ Current price: ${current_price:.2f}")
+            
+            # Ensure strike_price is float for options
+            if strategy == "Options" and strike_price is not None:
+                strike_price = float(strike_price)
+                st.write(f"✅ Strike price: ${strike_price:.2f}")
+            
+            # Standard commodity simulation (removed crack spread logic)
+            st.write(f"🔄 Running {n_simulations:,} simulations...")
+            sim_results = simulate_hedged_vs_unhedged(
+                prices, position, hedge_ratio, strategy, strike_price, n_simulations
+            )
+            
+            st.write(f"✅ Simulation completed successfully")
+            
+            # Calculate payoff diagram
+            st.write("🔄 Generating payoff diagram...")
+            payoff_data = compute_payoff_diagram(
+                float(current_price), position, hedge_ratio, strategy, 
+                float(strike_price) if strike_price is not None else None
+            )
+            
+            # Calculate risk metrics
+            st.write("🔄 Calculating risk metrics...")
+            hedged_risk = calculate_risk_metrics(sim_results['hedged_pnl'], confidence)
+            unhedged_risk = calculate_risk_metrics(sim_results['unhedged_pnl'], confidence)
+            
+            # Calculate delta exposure
+            delta_exposure = calculate_delta_exposure(
+                prices, position, hedge_ratio, strategy, 
+                float(strike_price) if strike_price is not None else None
+            )
+            
+            st.write("✅ All calculations completed successfully!")
+            
+            # Store results in session state
+            st.session_state.prices = prices
+            st.session_state.current_price = current_price
+            st.session_state.sim_results = sim_results
+            st.session_state.payoff_data = payoff_data
+            st.session_state.hedged_risk = hedged_risk
+            st.session_state.unhedged_risk = unhedged_risk
+            st.session_state.delta_exposure = delta_exposure
+            st.session_state.params = {
+                'commodity': commodity,
+                'position': position,
+                'strategy': strategy,
+                'hedge_ratio': hedge_ratio,
+                'strike_price': strike_price,
+                'confidence': confidence
+            }
+            
+        except Exception as e:
+            st.error(f"❌ Error running simulation: {str(e)}")
+            st.error("**Debug Information:**")
+            st.error(f"- Commodity: {commodity}")
+            st.error(f"- Strategy: {strategy}")
+            st.error(f"- Position: {position}")
+            st.error(f"- Hedge Ratio: {hedge_ratio}")
+            if strategy == "Options":
+                st.error(f"- Strike Price: {strike_price}")
+            st.error(f"- Error Type: {type(e).__name__}")
+            
+            # Show suggestion
+            st.info("💡 **Suggestions:**")
+            st.info("- Try a different commodity (WTI usually works best)")
+            st.info("- Check your internet connection") 
+            st.info("- Try with a smaller position size")
+            st.info("- Switch to Futures strategy if Options is failing")
+            
+            st.session_state.simulation_run = False
     
     # Display results if simulation has been run
     if st.session_state.simulation_run and hasattr(st.session_state, 'prices'):
