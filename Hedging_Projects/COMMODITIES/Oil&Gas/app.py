@@ -223,36 +223,27 @@ def main():
         with st.spinner("Loading price data and running simulation..."):
             try:
                 # Fetch data with error handling
-                st.write(f"🔄 Fetching {commodity} price data...")
                 prices = get_prices(commodity)
-                st.write(f"✅ Successfully loaded {len(prices)} price points")
                 
-                st.write(f"🔄 Getting current {commodity} price...")
                 current_price = float(get_current_price(commodity))
-                st.write(f"✅ Current price: ${current_price:.2f}")
                 
                 # Ensure strike_price is float for options
                 if strategy == "Options" and strike_price is not None:
                     strike_price = float(strike_price)
-                    st.write(f"✅ Strike price: ${strike_price:.2f}")
                 
                 # Run simulation
-                st.write(f"🔄 Running {n_simulations:,} simulations...")
                 sim_results = simulate_hedged_vs_unhedged(
                     prices, position, hedge_ratio, strategy, strike_price, n_simulations
                 )
                 
-                st.write(f"✅ Simulation completed successfully")
                 
                 # Calculate payoff diagram
-                st.write("🔄 Generating payoff diagram...")
                 payoff_data = compute_payoff_diagram(
                     float(current_price), position, hedge_ratio, strategy, 
                     float(strike_price) if strike_price is not None else None
                 )
                 
                 # Calculate risk metrics
-                st.write("🔄 Calculating risk metrics...")
                 hedged_risk = calculate_risk_metrics(sim_results['hedged_pnl'], confidence)
                 unhedged_risk = calculate_risk_metrics(sim_results['unhedged_pnl'], confidence)
                 
@@ -262,7 +253,6 @@ def main():
                     float(strike_price) if strike_price is not None else None
                 )
                 
-                st.write("✅ All calculations completed successfully!")
                 
                 # Calculate delta exposure
                 delta_exposure = calculate_delta_exposure(
