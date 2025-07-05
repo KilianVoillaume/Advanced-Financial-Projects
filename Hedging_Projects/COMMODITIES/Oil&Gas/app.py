@@ -59,10 +59,10 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     div[data-testid="stSidebar"] {
-        width: 450px; #Adjust sidebar width
+        width: 350px; #Adjust sidebar width
     }
     div[data-testid="stSidebar"] > div:first-child {
-        width: 450px;
+        width: 350px;
     }
 </style>
 """, unsafe_allow_html=True)
