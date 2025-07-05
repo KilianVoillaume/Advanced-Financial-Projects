@@ -119,7 +119,7 @@ def simulate_hedged_vs_unhedged(prices: pd.Series, position: float, hedge_ratio:
         prices (pd.Series): Historical commodity prices
         position (float): Position size
         hedge_ratio (float): Hedge ratio between 0.0 and 1.0
-        strategy (str): "Futures" or "Options"
+        strategy (str): "Futures", "Options", or "Crack Spread (3-2-1)"
         strike_price (Optional[float]): Strike price for options
         n_sim (int): Number of simulations (default: 1000)
         simulation_method (str): Simulation method (default: "normal")
@@ -137,6 +137,33 @@ def simulate_hedged_vs_unhedged(prices: pd.Series, position: float, hedge_ratio:
     if strike_price is not None:
         strike_price = float(strike_price)
     
+    # Handle crack spread separately since it uses different simulation logic
+    if strategy.lower() == "crack spread (3-2-1)":
+        # For crack spreads, we need refinery capacity
+        # Use position as a proxy for daily capacity (in barrels)
+        refinery_capacity = abs(position) * 100  # Scale position to reasonable refinery size
+        
+        # Use the crack spread simulation function
+        crack_results = compute_crack_spread_simulation(refinery_capacity, hedge_ratio)
+        
+        # Convert to simulation format expected by the rest of the app
+        unhedged_pnl_series = crack_results['unhedged_pnl']
+        hedged_pnl_series = crack_results['hedged_pnl']
+        
+        # Generate simulations from the historical crack spread data
+        unhedged_sim = simulate_pnl(unhedged_pnl_series, n_sim, simulation_method)
+        hedged_sim = simulate_pnl(hedged_pnl_series, n_sim, simulation_method)
+        
+        # Calculate hedge benefit
+        hedge_benefit = hedged_sim - unhedged_sim
+        
+        return {
+            'unhedged_pnl': unhedged_sim,
+            'hedged_pnl': hedged_sim,
+            'hedge_benefit': hedge_benefit
+        }
+    
+    # Original logic for Futures and Options
     # Calculate historical unhedged P&L
     price_changes = prices.diff().dropna()
     unhedged_pnl = price_changes * position
@@ -149,7 +176,7 @@ def simulate_hedged_vs_unhedged(prices: pd.Series, position: float, hedge_ratio:
             strike_price = float(prices.iloc[-1])  # Use last price as default
         hedge_pnl = compute_options_hedge(prices, position, hedge_ratio, strike_price)
     else:
-        raise ValueError(f"Unknown strategy: {strategy}")
+        raise ValueError(f"Unknown strategy: {strategy}. Supported strategies: 'Futures', 'Options', 'Crack Spread (3-2-1)'")
     
     # Align hedge P&L with unhedged P&L (same time periods)
     hedge_pnl_aligned = hedge_pnl.reindex(unhedged_pnl.index, fill_value=0)
