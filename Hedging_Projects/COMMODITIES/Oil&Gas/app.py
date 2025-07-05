@@ -58,6 +58,12 @@ st.markdown("""
         border-radius: 0.5rem;
         margin-bottom: 1rem;
     }
+    div[data-testid="stSidebar"] {
+        width: 350px;
+    }
+    div[data-testid="stSidebar"] > div:first-child {
+        width: 350px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
