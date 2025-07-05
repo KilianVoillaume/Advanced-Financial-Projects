@@ -18,7 +18,7 @@ try:
     from hedging.data import get_prices, get_current_price, get_available_commodities, validate_commodity
     from hedging.strategies import compute_payoff_diagram, get_hedge_summary, compute_crack_spread_simulation
     from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
-    from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison, calculate_black_scholes_greeks
+    from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison
 except ImportError as e:
     st.error(f"Error importing hedging modules: {e}")
     st.info("Please ensure all hedging modules are properly installed.")
