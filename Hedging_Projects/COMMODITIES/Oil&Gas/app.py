@@ -82,39 +82,21 @@ def main():
     with st.sidebar:
         st.markdown("## 📊 Simulation Parameters")
         
-        # Commodity selection
+        # Commodity selection - SIMPLE VERSION
         st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         st.markdown("### 🏭 Commodity Selection")
-        
-        # Group commodities by type
-        commodity_groups = {
-            "WTI Crude Oil": ["WTI Cushing", "WTI Houston", "WTI Midland", "WTI Bakken"],
-            "Brent Crude Oil": ["Brent Dated", "Brent Forties", "Mars Crude", "Dubai Crude"],
-            "Natural Gas": ["Natural Gas (Henry Hub)", "Natural Gas (Waha Hub)", "Natural Gas (AECO)"]
-        }
-        
-        # Let user select commodity group first
-        commodity_group = st.selectbox(
-            "Commodity Type:",
-            options=list(commodity_groups.keys()),
-            help="Select the type of commodity"
-        )
-        
-        # Then select specific location/grade
+
         commodity = st.selectbox(
-            "Location/Grade:",
-            options=commodity_groups[commodity_group],
-            help="Select specific location or crude grade"
+            "Select Commodity:",
+            options=[
+                "WTI Crude Oil",
+                "Brent Crude Oil", 
+                "Natural Gas"
+            ],
+            index=0,  # Default to WTI
+            help="Select the commodity for hedging analysis"
         )
-        
-        # Show basis information
-        from hedging.data import BASIS_ADJUSTMENTS
-        basis = BASIS_ADJUSTMENTS.get(commodity, 0.0)
-        if basis != 0:
-            st.caption(f"💰 Basis adjustment: {basis:+.2f} $/unit vs benchmark")
-        else:
-            st.caption("📍 Benchmark pricing location")
-            
+
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Position parameters
