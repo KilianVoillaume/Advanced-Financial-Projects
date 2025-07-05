@@ -181,7 +181,7 @@ def main():
                 st.metric("Current 3-2-1 Crack Spread", "$15.00/barrel (estimated)")
             
             st.caption("💡 3-2-1 Crack Spread: 3 barrels crude → 2 barrels gasoline + 1 barrel heating oil")
-            st.markdown('</div>', unsafe_allow_html=True)_html=True)_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         
         # Options-specific parameters (enhanced UI from update)
         strike_price = None
