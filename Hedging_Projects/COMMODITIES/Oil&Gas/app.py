@@ -17,7 +17,7 @@ from plotly.subplots import make_subplots
 from hedging.data import get_prices, get_current_price, get_available_commodities, validate_commodity
 from hedging.strategies import compute_payoff_diagram, get_hedge_summary
 from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
-from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison
+from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison, calculate_black_scholes_greeks
 
 
 # Page configuration
@@ -58,12 +58,6 @@ st.markdown("""
         border-radius: 0.5rem;
         margin-bottom: 1rem;
     }
-    div[data-testid="stSidebar"] {
-        width: 350px; #Adjust sidebar width
-    }
-    div[data-testid="stSidebar"] > div:first-child {
-        width: 350px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -86,12 +80,36 @@ def main():
         # Commodity selection
         st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         st.markdown("### 🏭 Commodity Selection")
-        commodity = st.selectbox(
-            "Select Commodity:",
-            options=get_available_commodities(),
-            index=0,
-            help="Choose the commodity for hedging analysis"
+        
+        # Group commodities by type
+        commodity_groups = {
+            "WTI Crude Oil": ["WTI Cushing", "WTI Houston", "WTI Midland", "WTI Bakken"],
+            "Brent Crude Oil": ["Brent Dated", "Brent Forties", "Mars Crude", "Dubai Crude"],
+            "Natural Gas": ["Natural Gas (Henry Hub)", "Natural Gas (Waha Hub)", "Natural Gas (AECO)"]
+        }
+        
+        # Let user select commodity group first
+        commodity_group = st.selectbox(
+            "Commodity Type:",
+            options=list(commodity_groups.keys()),
+            help="Select the type of commodity"
         )
+        
+        # Then select specific location/grade
+        commodity = st.selectbox(
+            "Location/Grade:",
+            options=commodity_groups[commodity_group],
+            help="Select specific location or crude grade"
+        )
+        
+        # Show basis information
+        from hedging.data import BASIS_ADJUSTMENTS
+        basis = BASIS_ADJUSTMENTS.get(commodity, 0.0)
+        if basis != 0:
+            st.caption(f"💰 Basis adjustment: {basis:+.2f} $/unit vs benchmark")
+        else:
+            st.caption("📍 Benchmark pricing location")
+            
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Position parameters
@@ -223,27 +241,36 @@ def main():
         with st.spinner("Loading price data and running simulation..."):
             try:
                 # Fetch data with error handling
+                st.write(f"🔄 Fetching {commodity} price data...")
                 prices = get_prices(commodity)
+                st.write(f"✅ Successfully loaded {len(prices)} price points")
                 
+                st.write(f"🔄 Getting current {commodity} price...")
                 current_price = float(get_current_price(commodity))
+                st.write(f"✅ Current price: ${current_price:.2f}")
                 
                 # Ensure strike_price is float for options
                 if strategy == "Options" and strike_price is not None:
                     strike_price = float(strike_price)
+                    st.write(f"✅ Strike price: ${strike_price:.2f}")
                 
                 # Run simulation
+                st.write(f"🔄 Running {n_simulations:,} simulations...")
                 sim_results = simulate_hedged_vs_unhedged(
                     prices, position, hedge_ratio, strategy, strike_price, n_simulations
                 )
                 
+                st.write(f"✅ Simulation completed successfully")
                 
                 # Calculate payoff diagram
+                st.write("🔄 Generating payoff diagram...")
                 payoff_data = compute_payoff_diagram(
                     float(current_price), position, hedge_ratio, strategy, 
                     float(strike_price) if strike_price is not None else None
                 )
                 
                 # Calculate risk metrics
+                st.write("🔄 Calculating risk metrics...")
                 hedged_risk = calculate_risk_metrics(sim_results['hedged_pnl'], confidence)
                 unhedged_risk = calculate_risk_metrics(sim_results['unhedged_pnl'], confidence)
                 
@@ -253,6 +280,7 @@ def main():
                     float(strike_price) if strike_price is not None else None
                 )
                 
+                st.write("✅ All calculations completed successfully!")
                 
                 # Calculate delta exposure
                 delta_exposure = calculate_delta_exposure(
@@ -344,7 +372,7 @@ def display_results():
     
     # Create tabs for different views
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Price Chart", "📊 Payoff Diagram", "🎯 P&L Distribution", "📋 Risk Metrics"])
-
+    
     with tab1:
         display_price_chart()
     
@@ -356,6 +384,7 @@ def display_results():
     
     with tab4:
         display_risk_metrics()
+
 
 def display_price_chart():
     """Display historical price chart."""
