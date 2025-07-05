@@ -37,13 +37,6 @@ BASIS_ADJUSTMENTS: Dict[str, float] = {
 def get_prices(commodity: str, period: str = "1y") -> pd.Series:
     """
     Fetch historical prices for a specified commodity with basis adjustments.
-    
-    Args:
-        commodity (str): Commodity name (e.g., "WTI Houston", "Brent Dated")
-        period (str): Time period for historical data (default: "1y")
-    
-    Returns:
-        pd.Series: Time series of daily closing prices with basis adjustments
     """
     
     # Find base commodity ticker
@@ -65,8 +58,9 @@ def get_prices(commodity: str, period: str = "1y") -> pd.Series:
     ticker = COMMODITY_TICKERS[base_commodity]
     
     try:
-        # Fetch historical data
-        print(f"Fetching data for {commodity} using base {base_commodity} ({ticker})...")
+        # Fetch historical data - REMOVE THIS PRINT STATEMENT:
+        # print(f"Fetching data for {commodity} using base {base_commodity} ({ticker})...")
+        
         commodity_data = yf.download(ticker, period=period, progress=False)
         
         # Extract closing prices
@@ -97,26 +91,22 @@ def get_prices(commodity: str, period: str = "1y") -> pd.Series:
         basis_adjustment = BASIS_ADJUSTMENTS.get(commodity, 0.0)
         adjusted_prices = prices + basis_adjustment
         
-        print(f"Successfully fetched {len(adjusted_prices)} price points for {commodity}")
-        if basis_adjustment != 0:
-            print(f"Applied basis adjustment: {basis_adjustment:+.2f}")
+        # REMOVE THESE PRINT STATEMENTS:
+        # print(f"Successfully fetched {len(adjusted_prices)} price points for {commodity}")
+        # if basis_adjustment != 0:
+        #     print(f"Applied basis adjustment: {basis_adjustment:+.2f}")
             
         return adjusted_prices
         
     except Exception as e:
-        print(f"Error fetching data for {commodity}: {str(e)}")
+        # REMOVE THIS PRINT STATEMENT:
+        # print(f"Error fetching data for {commodity}: {str(e)}")
         raise ValueError(f"Error fetching data for {commodity}: {str(e)}")
 
 
 def get_current_price(commodity: str) -> float:
     """
     Get the most recent price for a commodity with basis adjustments.
-    
-    Args:
-        commodity (str): Commodity name (e.g., "WTI Houston", "Brent Dated")
-    
-    Returns:
-        float: Most recent closing price with basis adjustment
     """
     
     try:
@@ -152,7 +142,8 @@ def get_current_price(commodity: str) -> float:
         }
         
         if commodity in fallback_prices:
-            print(f"Warning: Using fallback price for {commodity}: ${fallback_prices[commodity]}")
+            # REMOVE THIS PRINT STATEMENT:
+            # print(f"Warning: Using fallback price for {commodity}: ${fallback_prices[commodity]}")
             return fallback_prices[commodity]
         else:
             raise ValueError(f"Error getting current price for {commodity}: {str(e)}")
