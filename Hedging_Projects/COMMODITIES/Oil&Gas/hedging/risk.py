@@ -193,13 +193,12 @@ def calculate_delta_exposure(prices: pd.Series, position: float, hedge_ratio: fl
             net_delta = -1.0 + (option_delta * hedge_ratio)
     
     else:
-        raise ValueError(f"Unknown strategy: {strategy}")
+        raise ValueError(f"Unknown strategy: {strategy}. Supported strategies: 'Futures', 'Options'")
     
     # Scale by position size
     delta_exposure = net_delta * abs(position)
     
     return float(delta_exposure)
-
 
 def calculate_hedge_efficiency(hedged_pnl: np.ndarray, unhedged_pnl: np.ndarray) -> Dict[str, float]:
     """
