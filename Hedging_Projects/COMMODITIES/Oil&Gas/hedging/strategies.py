@@ -10,9 +10,6 @@ import numpy as np
 from typing import Dict, Tuple, Optional
 from scipy.stats import norm
 
-# Import crack spread functionality
-from .crack_spreads import compute_crack_spread_hedge, compute_crack_spread_payoff_diagram, get_current_crack_spread
-
 
 def compute_futures_hedge(prices: pd.Series, position: float, hedge_ratio: float) -> pd.Series:
     """
@@ -281,6 +278,48 @@ def get_hedge_summary(current_price: float, position: float, hedge_ratio: float,
         summary['moneyness'] = float(current_price) / float(strike_price)
     
     return summary
+
+
+def compute_crack_spread_simulation(refinery_capacity: float, hedge_ratio: float) -> Dict[str, pd.Series]:
+    """
+    Simplified crack spread simulation for hedging analysis.
+    
+    Args:
+        refinery_capacity: Refinery capacity in barrels per day
+        hedge_ratio: Hedge ratio between 0.0 and 1.0
+    
+    Returns:
+        Dict with simulated crack spread P&L
+    """
+    
+    # Simplified crack spread simulation (placeholder for now)
+    # Generate synthetic crack spread data
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=252, freq='D')
+    
+    # Simulate crack spread changes (typically $10-25/barrel with high volatility)
+    base_spread = 15.0  # $15/barrel base crack spread
+    spread_changes = np.random.normal(0, 2.0, 252)  # $2/barrel daily std dev
+    crack_spreads = base_spread + np.cumsum(spread_changes * 0.1)  # Mean reverting
+    
+    crack_spread_series = pd.Series(crack_spreads, index=dates)
+    spread_changes_series = crack_spread_series.diff().dropna()
+    
+    # Calculate refinery P&L (3-2-1 crack spread)
+    daily_capacity = refinery_capacity
+    unhedged_pnl = spread_changes_series * (daily_capacity / 3)  # 3 barrels crude per unit
+    
+    # Hedge P&L (selling product futures, buying crude futures)
+    hedge_pnl = -spread_changes_series * (daily_capacity / 3) * hedge_ratio
+    
+    # Net hedged P&L
+    hedged_pnl = unhedged_pnl + hedge_pnl
+    
+    return {
+        'unhedged_pnl': unhedged_pnl,
+        'hedge_pnl': hedge_pnl,
+        'hedged_pnl': hedged_pnl,
+        'crack_spreads': crack_spread_series
+    }
 
 
 # Example usage and testing
