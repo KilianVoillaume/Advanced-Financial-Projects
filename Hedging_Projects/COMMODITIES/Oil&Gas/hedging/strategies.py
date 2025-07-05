@@ -139,7 +139,7 @@ def compute_payoff_diagram(current_price: float, position: float, hedge_ratio: f
         current_price (float): Current spot price
         position (float): Position size
         hedge_ratio (float): Hedge ratio between 0.0 and 1.0
-        strategy (str): "Futures", "Options", or "Crack Spread (3-2-1)"
+        strategy (str): "Futures" or "Options"
         strike_price (Optional[float]): Strike price for options (default: current_price)
         price_range_pct (float): Price range as percentage of current price (default: 0.3 = ±30%)
         num_points (int): Number of price points to calculate (default: 100)
@@ -153,41 +153,6 @@ def compute_payoff_diagram(current_price: float, position: float, hedge_ratio: f
             - 'breakeven_prices': Breakeven price points
     """
     
-    # Handle crack spread separately
-    if strategy.lower() == "crack spread (3-2-1)":
-        # For crack spreads, use the crack spread payoff calculation
-        from .crack_spreads import compute_crack_spread_payoff_diagram
-        
-        # Use reasonable defaults for crack spread calculation
-        current_gasoline_price = 2.10  # $/gallon
-        current_heating_oil_price = 2.20  # $/gallon
-        refinery_capacity = abs(position) * 100  # Scale position to refinery capacity
-        
-        try:
-            return compute_crack_spread_payoff_diagram(
-                current_price, current_gasoline_price, current_heating_oil_price,
-                refinery_capacity, hedge_ratio, "3-2-1", price_range_pct, num_points
-            )
-        except Exception:
-            # Fallback to simplified crack spread payoff
-            price_min = current_price * (1 - price_range_pct)
-            price_max = current_price * (1 + price_range_pct)
-            spot_prices = np.linspace(price_min, price_max, num_points)
-            
-            # Simplified crack spread logic: refinery makes money when crude is cheap
-            underlying_pnl = -(spot_prices - current_price) * abs(position) * 0.1  # Inverse relationship
-            hedge_pnl = (spot_prices - current_price) * abs(position) * 0.1 * hedge_ratio
-            net_pnl = underlying_pnl + hedge_pnl
-            
-            return {
-                'spot_prices': pd.Series(spot_prices, name='Crude Price'),
-                'underlying_pnl': pd.Series(underlying_pnl, name='Refinery Margin P&L'),
-                'hedge_pnl': pd.Series(hedge_pnl, name='Crack Spread Hedge P&L'),
-                'net_pnl': pd.Series(net_pnl, name='Net Refinery P&L'),
-                'breakeven_prices': []
-            }
-    
-    # Original logic for Futures and Options...
     # Set default strike price to current price (ATM)
     if strike_price is None:
         strike_price = float(current_price)
@@ -229,7 +194,7 @@ def compute_payoff_diagram(current_price: float, position: float, hedge_ratio: f
             hedge_pnl[i] = option_payoff * abs(float(position)) * float(hedge_ratio)
     
     else:
-        raise ValueError(f"Unknown strategy: {strategy}. Supported: 'Futures', 'Options', 'Crack Spread (3-2-1)'")
+        raise ValueError(f"Unknown strategy: {strategy}. Supported: 'Futures', 'Options'")
     
     # Calculate net P&L
     net_pnl = underlying_pnl + hedge_pnl
