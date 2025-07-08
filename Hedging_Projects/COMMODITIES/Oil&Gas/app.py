@@ -406,30 +406,51 @@ def portfolio_builder_sidebar():
         option_expiry = None
         
         if strategy == "Options":
-            try:
-                current_price = get_current_price(commodity)
-                
-                strike_price = st.slider(
-                    "Strike Price ($):",
-                    min_value=float(current_price * 0.7),
-                    max_value=float(current_price * 1.3),
-                    value=float(current_price),
-                    step=0.5,
-                    help="Option strike price"
-                )
-                
+            st.markdown("**⚙️ Options Parameters:**")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                try:
+                    current_price = get_current_price(commodity)
+                    strike_price = st.slider(
+                        "Strike Price ($):",
+                        min_value=float(current_price * 0.7),
+                        max_value=float(current_price * 1.3),
+                        value=float(current_price),
+                        step=0.5,
+                        help="Option strike price",
+                        key="portfolio_strike_price"
+                    )
+                    
+                    moneyness = current_price / strike_price
+                    if abs(moneyness - 1.0) < 0.05:
+                        st.caption("🎯 At-the-Money (ATM)")
+                    elif moneyness > 1.05:
+                        st.caption("📉 Out-of-the-Money (OTM)")
+                    else:
+                        st.caption("📈 In-the-Money (ITM)")
+                        
+                except Exception as e:
+                    st.warning(f"Could not fetch current price: {e}")
+                    strike_price = st.number_input(
+                        "Strike Price ($):", 
+                        value=75.0, 
+                        min_value=1.0, 
+                        max_value=200.0,
+                        step=0.5,
+                        key="portfolio_strike_fallback"
+                    )
+            
+            with col2:
                 option_expiry = st.selectbox(
                     "Option Maturity:",
                     options=[1, 3, 6, 12],
                     index=1,
                     format_func=lambda x: f"{x} month{'s' if x > 1 else ''}",
-                    help="Time until option expiration"
+                    help="Time until option expiration",
+                    key="portfolio_option_expiry"
                 )
-                
-            except Exception as e:
-                st.error(f"Error getting current price: {e}")
-                strike_price = 75.0
-                option_expiry = 3
                 
                 # Show option type
                 option_type = "Put" if position_direction == "Long" else "Call"
