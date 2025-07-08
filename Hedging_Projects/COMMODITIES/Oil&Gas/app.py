@@ -53,9 +53,9 @@ st.markdown("""
     .hero-subtitle { font-size: 1.3rem; font-weight: 300; opacity: 0.95; }
     
     .mode-container {
-        background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%);
-        padding: 2rem; border-radius: 20px; margin: 2rem auto; max-width: 1000px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center;
+        background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%); border-radius: 20px; margin: 3rem auto; max-width: 1000px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center; display: flex; justify-content: center;
+        align-items: center; padding: 2rem;
     }
     
     .mode-title {
@@ -66,6 +66,8 @@ st.markdown("""
     .stRadio > div { 
         display: flex; justify-content: center; gap: 3rem; 
         flex-wrap: wrap; align-items: center;
+        margin: 0 auto;
+        max-width: 800px;
     }
     
     .stRadio > div > label {
@@ -242,7 +244,7 @@ def main():
     """, unsafe_allow_html=True)
     
     # Centered mode selection with better styling
-    col1, col2, col3 = st.columns([1, 3, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     
     with col2:
         mode_option = st.radio(
@@ -270,7 +272,8 @@ def main():
         """, unsafe_allow_html=True)
     
     st.markdown("---")
-    
+    st.markdown("<br>", unsafe_allow_html=True)
+
     if st.session_state.portfolio_mode:
         portfolio_interface()
     else:
@@ -385,15 +388,14 @@ def portfolio_builder_sidebar():
         hedge_ratio = st.slider(
             "Hedge Ratio:",
             min_value=0.0,
-            max_value=1.0,
+            max_value=100.0,
             value=0.8,
             step=0.05,
-            format="%.0f%%",
-            help="Percentage of position to hedge",
-            key="portfolio_hedge_ratio"
+            format="%.2f%%",
+            help="Percentage of position to hedge"
         ) 
         
-        st.caption(f"Hedging {hedge_ratio*100:.0f}% of the position")
+        st.caption(f"Hedging {hedge_ratio*100:.2f}% of the position")
         
         strategy = st.selectbox(
             "Strategy:",
