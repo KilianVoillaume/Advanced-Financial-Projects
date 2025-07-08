@@ -701,7 +701,26 @@ def portfolio_dashboard():
                     st.write(f"**Manual Net Calculation:**")
                     st.write(f"- Total Portfolio Delta: {total_delta:.4f}")
                     st.write(f"- Total Portfolio Gamma: {total_gamma:.4f}")
-        
+
+                st.markdown("### 🔍 Summary Cards Debug")
+                net_greeks_manual = {
+                    'delta': 0.0,
+                    'gamma': 0.0,
+                    'theta': 0.0,
+                    'vega': 0.0,
+                    'rho': 0.0
+                }
+
+                for position in portfolio.positions.values():
+                    if position.strategy == "Options":
+                        greeks = position.get_position_greeks()
+                        for greek_name, greek_value in greeks.items():
+                            net_greeks_manual[greek_name] += greek_value
+
+                st.write("**What Summary Cards SHOULD show:**")
+                for greek_name, value in net_greeks_manual.items():
+                    st.write(f"- {greek_name.title()}: {value:.4f}")
+                
                 st.markdown("---")
             render_enhanced_greeks_tab(portfolio, analysis_ready)
     
