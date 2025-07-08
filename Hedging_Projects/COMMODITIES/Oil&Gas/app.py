@@ -389,7 +389,7 @@ def portfolio_builder_sidebar():
             "Hedge Ratio:",
             min_value=0.0,
             max_value=100.0,
-            value=0.8,
+            value=8,
             step=0.05,
             format="%.2f%%",
             help="Percentage of position to hedge"
