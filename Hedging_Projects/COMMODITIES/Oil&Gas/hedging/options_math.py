@@ -18,14 +18,12 @@ class BlackScholesCalculator:
     
     @staticmethod
     def d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
-        """Calculate d1 parameter for Black-Scholes formula."""
         if T <= 0 or sigma <= 0:
             return 0.0
         return (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     
     @staticmethod
     def d2(S: float, K: float, T: float, r: float, sigma: float) -> float:
-        """Calculate d2 parameter for Black-Scholes formula."""
         if T <= 0 or sigma <= 0:
             return 0.0
         d1_val = BlackScholesCalculator.d1(S, K, T, r, sigma)
@@ -33,7 +31,6 @@ class BlackScholesCalculator:
     
     @staticmethod
     def calculate_option_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
-        """ Calculate European option price using Black-Scholes formula. """
         if T <= 0:
             # At expiration
             if option_type.lower() == 'call':
@@ -53,7 +50,7 @@ class BlackScholesCalculator:
             else:  # put
                 price = K * np.exp(-r * T) * norm.cdf(-d2_val) - S * norm.cdf(-d1_val)
             
-            return max(price, 0.0)  # Ensure non-negative price
+            return max(price, 0.0)  # Non-negative price
             
         except Exception as e:
             print(f"Error calculating option price: {e}")
@@ -61,7 +58,6 @@ class BlackScholesCalculator:
     
     @staticmethod
     def calculate_greeks(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> Dict[str, float]:
-        """ Calculate all Greeks for an option. """
         if T <= 0:
             return {
                 'delta': 0.0,
@@ -136,7 +132,6 @@ class BlackScholesCalculator:
     
     @staticmethod
     def calculate_implied_volatility(market_price: float, S: float, K: float, T: float, r: float, option_type: str, max_iterations: int = 100) -> float:
-        """ Calculate implied volatility from market price using Brent's method. """
         if T <= 0 or market_price <= 0:
             return 0.0
         
@@ -159,7 +154,7 @@ class BlackScholesCalculator:
                 return float('inf')
         
         try:
-            # Use Brent's method to find implied volatility
+            # Brent's method to find implied volatility
             implied_vol = brentq(objective, 0.001, 5.0, maxiter=max_iterations)
             return max(implied_vol, 0.0)
         except:
@@ -180,30 +175,24 @@ class BlackScholesCalculator:
                 return 0.25  # Default volatility if all methods fail
 
 
-class AsianOptionCalculator:
-    """
-    Calculator for Asian (average price) options using Monte Carlo simulation.
-    """
-    
+class AsianOptionCalculator: 
     @staticmethod
     def monte_carlo_asian_price(S0: float, K: float, T: float, r: float, sigma: float, n_steps: int, n_simulations: int,
                               option_type: str, average_type: str = "arithmetic") -> Dict[str, float]:
 
-        """ Price Asian option using Monte Carlo simulation. """
+        """ Price Asian option using Monte Carlo simulation """
         if T <= 0 or n_steps <= 0 or n_simulations <= 0:
             return {'price': 0.0, 'std_error': 0.0, 'confidence_interval': (0.0, 0.0)}
         
         dt = T / n_steps
         discount_factor = np.exp(-r * T)
         
-        # Pre-calculate random numbers for efficiency
-        np.random.seed(42)  # For reproducibility
+        np.random.seed(42)
         random_numbers = np.random.standard_normal((n_simulations, n_steps))
         
         payoffs = np.zeros(n_simulations)
         
         for i in range(n_simulations):
-            # Simulate price path
             prices = np.zeros(n_steps + 1)
             prices[0] = S0
             
@@ -212,19 +201,17 @@ class AsianOptionCalculator:
                     (r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * random_numbers[i, j]
                 )
             
-            # Calculate average price (excluding initial price)
+            # Average price (without initial price)
             if average_type == "arithmetic":
                 avg_price = np.mean(prices[1:])
             else:  # geometric
                 avg_price = np.exp(np.mean(np.log(prices[1:])))
             
-            # Calculate payoff
             if option_type.lower() == 'call':
                 payoffs[i] = max(avg_price - K, 0)
             else:  # put
                 payoffs[i] = max(K - avg_price, 0)
         
-        # Calculate statistics
         discounted_payoffs = payoffs * discount_factor
         option_price = np.mean(discounted_payoffs)
         std_error = np.std(discounted_payoffs) / np.sqrt(n_simulations)
@@ -291,14 +278,9 @@ class AsianOptionCalculator:
         }
 
 
-class OptionsPortfolioAnalyzer:
-    """
-    Analyzer for portfolios containing multiple options positions.
-    """
-    
+class OptionsPortfolioAnalyzer:    
     @staticmethod
     def calculate_portfolio_greeks(positions: List[Dict]) -> Dict[str, float]:
-        """ Calculate net Greeks for a portfolio of options. """
 
         net_greeks = {
             'delta': 0.0,
@@ -329,20 +311,15 @@ class OptionsPortfolioAnalyzer:
     @staticmethod
     def calculate_portfolio_var(positions: List[Dict], confidence_level: float = 0.95, time_horizon: float = 1.0) -> Dict[str, float]:
         """ Calculate Value at Risk for options portfolio using delta-gamma approximation. """
-        # Calculate portfolio Greeks
         portfolio_greeks = OptionsPortfolioAnalyzer.calculate_portfolio_greeks(positions)
         
-        # Assume average volatility and correlation for portfolio
         avg_volatility = np.mean([pos.get('sigma', 0.25) for pos in positions])
         avg_spot = np.mean([pos.get('S', 100) for pos in positions])
         
-        # Delta-normal VaR
         delta_var = abs(portfolio_greeks['delta']) * avg_spot * avg_volatility * np.sqrt(time_horizon)
         
-        # Gamma adjustment
         gamma_adjustment = 0.5 * portfolio_greeks['gamma'] * (avg_spot * avg_volatility * np.sqrt(time_horizon))**2
         
-        # Total VaR with gamma adjustment
         total_var = delta_var + gamma_adjustment
         
         # Apply confidence level
@@ -359,10 +336,7 @@ class OptionsPortfolioAnalyzer:
 
 
 class VolatilityEstimator:
-    """
-    Volatility estimation utilities for options pricing.
-    """
-    
+
     @staticmethod
     def historical_volatility(prices: pd.Series, window: int = 30) -> float:
         """ Calculate historical volatility from price series. """
@@ -370,13 +344,8 @@ class VolatilityEstimator:
             return 0.25  # Default volatility
         
         try:
-            # Calculate log returns
             log_returns = np.log(prices / prices.shift(1)).dropna()
-            
-            # Calculate rolling volatility
             rolling_vol = log_returns.rolling(window=window).std()
-            
-            # Annualize (assuming 252 trading days per year)
             annualized_vol = rolling_vol.iloc[-1] * np.sqrt(252)
             
             return annualized_vol if not np.isnan(annualized_vol) else 0.25
@@ -389,13 +358,12 @@ class VolatilityEstimator:
     def garch_volatility(prices: pd.Series, forecast_periods: int = 1) -> float:
         """ Simple GARCH(1,1) volatility forecast. """
         try:
-            # Calculate log returns
             log_returns = np.log(prices / prices.shift(1)).dropna()
             
             if len(log_returns) < 50:
                 return VolatilityEstimator.historical_volatility(prices)
             
-            # Simple GARCH(1,1) parameters (you can make these more sophisticated)
+            # Simple GARCH(1,1) parameters 
             alpha = 0.1
             beta = 0.85
             omega = 0.000001
@@ -410,13 +378,12 @@ class VolatilityEstimator:
                                          alpha * returns_squared.iloc[i-1] + 
                                          beta * conditional_variance[i-1])
             
-            # Forecast volatility
             last_variance = conditional_variance[-1]
             last_return_squared = returns_squared.iloc[-1]
             
             forecasted_variance = omega + alpha * last_return_squared + beta * last_variance
             
-            # Annualize
+            # Annualize for trading days per year
             forecasted_volatility = np.sqrt(forecasted_variance * 252)
             
             return forecasted_volatility if not np.isnan(forecasted_volatility) else 0.25
@@ -426,7 +393,6 @@ class VolatilityEstimator:
             return VolatilityEstimator.historical_volatility(prices)
 
 
-# Utility functions for common operations
 def get_risk_free_rate() -> float:
     """Get current risk-free rate (simplified - in practice, you'd fetch from API)."""
     return 0.03  # 3% default rate
@@ -449,11 +415,9 @@ def get_commodity_volatility(commodity: str, prices: pd.Series = None) -> float:
     return volatility_map.get(commodity, 0.25)
 
 def time_to_expiration(expiry_months: int) -> float:
-    """Convert months to years for options calculations."""
     return expiry_months / 12.0
 
 
-# Example usage and testing
 if __name__ == "__main__":
     print("=== Options Math Module Test ===")
     
@@ -469,7 +433,6 @@ if __name__ == "__main__":
     print(f"Call Option Price: ${call_price:.2f}")
     print(f"Call Greeks: {call_greeks}")
     
-    # Test Asian option pricing
     asian_result = AsianOptionCalculator.monte_carlo_asian_price(
         S, K, T, r, sigma, 50, 10000, 'call', 'arithmetic'
     )
@@ -478,7 +441,6 @@ if __name__ == "__main__":
     print(f"Standard Error: ${asian_result['std_error']:.2f}")
     print(f"95% Confidence Interval: ${asian_result['confidence_interval'][0]:.2f} - ${asian_result['confidence_interval'][1]:.2f}")
     
-    # Test implied volatility
     market_price = 2.50
     implied_vol = BlackScholesCalculator.calculate_implied_volatility(
         market_price, S, K, T, r, 'call'
