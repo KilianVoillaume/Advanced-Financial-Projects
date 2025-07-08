@@ -7,7 +7,7 @@ Handles portfolio construction, risk analytics, and optimization.
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Dict, List, Optional, Union, Tuple, Literal
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 import warnings
@@ -18,17 +18,47 @@ from .simulation import simulate_hedged_vs_unhedged
 from .risk import calculate_risk_metrics
 
 
+class OptionType(Enum):
+    CALL = "call"
+    PUT = "put"
+
+class OptionDirection(Enum):
+    LONG = "long"   # Buying the option
+    SHORT = "short" # Selling the option
+
+class PositionType(Enum):
+    UNDERLYING = "underlying"  # Physical commodity position
+    HEDGE = "hedge"           # Hedge for underlying position
+    SPECULATION = "speculation" # Pure trading position
+
 @dataclass(frozen=True)
 class Position:
-    """ Immutable position data structure. """
+    """
+    Enhanced Position class with explicit options parameters.
+    
+    Supports three use cases:
+    1. Underlying commodity positions (long/short physical)
+    2. Hedging positions (options to hedge underlying)
+    3. Pure options positions (speculation/trading)
+    """
     commodity: str
-    size: float
-    hedge_ratio: float
-    strategy: str = "Futures"
+    size: float  # Position size (positive=long, negative=short for underlying)
+    hedge_ratio: float = 0.0
+    strategy: Literal["Futures", "Options"] = "Futures"
     strike_price: Optional[float] = None
     current_price: Optional[float] = None
     
+    # NEW: Enhanced options parameters
+    option_type: Optional[OptionType] = None
+    option_direction: Optional[OptionDirection] = None
+    position_type: PositionType = PositionType.UNDERLYING
+    
+    # NEW: Options quantity (separate from underlying size)
+    option_quantity: Optional[float] = None
+    
     def __post_init__(self):
+        """Initialize current price and validate options parameters."""
+        # Set current price if not provided
         if self.current_price is None:
             try:
                 price = get_current_price(self.commodity)
@@ -41,44 +71,100 @@ class Position:
                 }
                 fallback_price = fallback_prices.get(self.commodity, 75.0)
                 object.__setattr__(self, 'current_price', fallback_price)
+        
+        # Auto-configure options for hedging positions
+        if self.strategy == "Options" and self.position_type == PositionType.HEDGE:
+            self._auto_configure_hedge_options()
+        
+        # Validate options parameters
+        if self.strategy == "Options":
+            self._validate_options_parameters()
+    
+    def _auto_configure_hedge_options(self):
+        """Auto-configure options for hedging underlying positions."""
+        if self.option_type is None:
+            # Long underlying -> hedge with puts (protect against downside)
+            # Short underlying -> hedge with calls (protect against upside)
+            option_type = OptionType.PUT if self.size > 0 else OptionType.CALL
+            object.__setattr__(self, 'option_type', option_type)
+        
+        if self.option_direction is None:
+            # Hedging always involves BUYING options for protection
+            object.__setattr__(self, 'option_direction', OptionDirection.LONG)
+        
+        if self.option_quantity is None:
+            # Default: hedge quantity = underlying size * hedge ratio
+            quantity = abs(self.size) * self.hedge_ratio
+            object.__setattr__(self, 'option_quantity', quantity)
+        
+        if self.strike_price is None:
+            # Default: at-the-money strike
+            object.__setattr__(self, 'strike_price', self.current_price)
+    
+    def _validate_options_parameters(self):
+        """Validate options parameters for consistency."""
+        if self.option_type is None:
+            raise ValueError("option_type is required for Options strategy")
+        
+        if self.option_direction is None:
+            raise ValueError("option_direction is required for Options strategy")
+        
+        if self.strike_price is None:
+            raise ValueError("strike_price is required for Options strategy")
+        
+        if self.option_quantity is None:
+            # For pure options positions, use absolute size
+            if self.position_type == PositionType.SPECULATION:
+                object.__setattr__(self, 'option_quantity', abs(self.size))
+            else:
+                raise ValueError("option_quantity is required for Options strategy")
     
     @property
     def direction(self) -> str:
-        """Position direction: 'Long' or 'Short'."""
+        """Position direction for underlying."""
         return "Long" if self.size > 0 else "Short"
     
     @property
-    def abs_size(self) -> float:
-        """Absolute position size."""
-        return abs(self.size)
+    def options_direction_display(self) -> str:
+        """Display string for options direction."""
+        if self.strategy != "Options":
+            return "N/A"
+        return self.option_direction.value.title() if self.option_direction else "N/A"
+    
+    @property
+    def options_type_display(self) -> str:
+        """Display string for options type."""
+        if self.strategy != "Options":
+            return "N/A"
+        return self.option_type.value.title() if self.option_type else "N/A"
+    
+    @property
+    def effective_options_position_size(self) -> float:
+        """
+        Calculate effective options position size with direction.
+        Positive = Long options, Negative = Short options
+        """
+        if self.strategy != "Options" or self.option_quantity is None:
+            return 0.0
+        
+        multiplier = 1 if self.option_direction == OptionDirection.LONG else -1
+        return self.option_quantity * multiplier
     
     @property
     def notional_value(self) -> float:
-        """Notional value of position."""
-        return self.abs_size * self.current_price
+        """Notional value based on position type."""
+        if self.position_type == PositionType.SPECULATION and self.strategy == "Options":
+            # For pure options positions, use options value
+            return self.option_quantity * self.current_price if self.option_quantity else 0
+        else:
+            # For underlying/hedge positions, use underlying value
+            return abs(self.size) * self.current_price
     
-    @property
-    def is_hedged(self) -> bool:
-        """Check if position is hedged."""
-        return self.hedge_ratio > 0
-    
-    def with_hedge_ratio(self, new_ratio: float) -> 'Position':
-        """Create new position with different hedge ratio."""
-        return replace(self, hedge_ratio=new_ratio)
-    
-    def with_size(self, new_size: float) -> 'Position':
-        """Create new position with different size."""
-        return replace(self, size=new_size)
-
     def get_position_greeks(self) -> Dict[str, float]:
-        """Calculate Greeks for this position."""
+        """Calculate Greeks for this position with correct direction handling."""
         if self.strategy != "Options" or not self.strike_price:
             return {
-                'delta': 0.0,
-                'gamma': 0.0,
-                'theta': 0.0,
-                'vega': 0.0,
-                'rho': 0.0
+                'delta': 0.0, 'gamma': 0.0, 'theta': 0.0, 'vega': 0.0, 'rho': 0.0
             }
         
         try:
@@ -87,37 +173,33 @@ class Position:
             # Parameters for Greeks calculation
             current_price = self.current_price
             strike = self.strike_price
-            time_to_exp = time_to_expiration(3)  # 3 months default
+            time_to_exp = time_to_expiration(3)
             risk_free_rate = get_risk_free_rate()
             volatility = get_commodity_volatility(self.commodity)
             
-            # Determine option type
-            option_type = 'put' if self.size > 0 else 'call'
+            # Use explicit option type
+            option_type = self.option_type.value
             
-            # Calculate Greeks
+            # Calculate base Greeks for the option
             greeks = BlackScholesCalculator.calculate_greeks(
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
             )
             
-            # Scale by position size and hedge ratio
-            multiplier = abs(self.size) * self.hedge_ratio
+            # Apply position direction and quantity
+            effective_size = self.effective_options_position_size
             
             return {
-                'delta': greeks['delta'] * multiplier,
-                'gamma': greeks['gamma'] * multiplier,
-                'theta': greeks['theta'] * multiplier,
-                'vega': greeks['vega'] * multiplier,
-                'rho': greeks['rho'] * multiplier
+                'delta': greeks['delta'] * effective_size,
+                'gamma': greeks['gamma'] * effective_size,
+                'theta': greeks['theta'] * effective_size,
+                'vega': greeks['vega'] * effective_size,
+                'rho': greeks['rho'] * effective_size
             }
             
         except Exception as e:
             print(f"Error calculating Greeks: {e}")
             return {
-                'delta': 0.0,
-                'gamma': 0.0,
-                'theta': 0.0,
-                'vega': 0.0,
-                'rho': 0.0
+                'delta': 0.0, 'gamma': 0.0, 'theta': 0.0, 'vega': 0.0, 'rho': 0.0
             }
 
 
