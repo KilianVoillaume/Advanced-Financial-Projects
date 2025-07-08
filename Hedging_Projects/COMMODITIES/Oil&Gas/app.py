@@ -55,7 +55,7 @@ st.markdown("""
     .mode-container {
         background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%);
         padding: 2rem; border-radius: 20px; margin: 3rem auto 3rem auto; max-width: 1000px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center; justify-content: center; align-items: center;
     }
     
     .mode-title {
@@ -273,7 +273,7 @@ def main():
     
     st.markdown("---")
     st.markdown("<br>", unsafe_allow_html=True)
-    
+
     if st.session_state.portfolio_mode:
         portfolio_interface()
     else:
