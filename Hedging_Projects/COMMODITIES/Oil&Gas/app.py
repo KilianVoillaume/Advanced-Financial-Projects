@@ -339,6 +339,96 @@ def portfolio_builder_sidebar():
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-title">➕ Add New Position</div>', unsafe_allow_html=True)
     
+# Strategy selection OUTSIDE the form
+    strategy = st.selectbox(
+        "Strategy:",
+        options=["Futures", "Options"],
+        help="Hedging instrument",
+        key="strategy_selector"
+    )
+    
+    # Commodity selection OUTSIDE the form (needed for options pricing)
+    commodity = st.selectbox(
+        "Commodity:",
+        options=["WTI Crude Oil", "Brent Crude Oil", "Natural Gas"],
+        help="Select commodity type",
+        key="commodity_selector_outside"
+    )
+    
+    # Options parameters OUTSIDE the form - now they update immediately!
+    strike_price = None
+    option_expiry = None
+    
+    if strategy == "Options":
+        st.markdown("**⚙️ Options Parameters:**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            try:
+                current_price = get_current_price(commodity)
+                strike_price = st.slider(
+                    "Strike Price ($):",
+                    min_value=float(current_price * 0.7),
+                    max_value=float(current_price * 1.3),
+                    value=float(current_price),
+                    step=0.5,
+                    help="Option strike price",
+                    key="portfolio_strike_price"
+                )
+                
+                moneyness = current_price / strike_price
+                if abs(moneyness - 1.0) < 0.05:
+                    st.caption("🎯 At-the-Money (ATM)")
+                elif moneyness > 1.05:
+                    st.caption("📉 Out-of-the-Money (OTM)")
+                else:
+                    st.caption("📈 In-the-Money (ITM)")
+                    
+            except Exception as e:
+                st.warning(f"Could not fetch current price: {e}")
+                strike_price = st.number_input(
+                    "Strike Price ($):", 
+                    value=75.0, 
+                    min_value=1.0, 
+                    max_value=200.0,
+                    step=0.5,
+                    key="portfolio_strike_fallback"
+                )
+        
+        with col2:
+            option_expiry = st.selectbox(
+                "Option Maturity:",
+                options=[1, 3, 6, 12],
+                index=1,
+                format_func=lambda x: f"{x} month{'s' if x > 1 else ''}",
+                help="Time until option expiration",
+                key="portfolio_option_expiry"
+            )
+            
+            # Show option type based on position direction (we'll get this from form)
+            st.caption("📊 Option type will be determined by position direction")
+        
+        st.markdown("---")
+    
+    # Hedge ratio OUTSIDE the form so it updates dynamically
+    hedge_ratio = st.slider(
+        "Hedge Ratio:",
+        min_value=0.0,
+        max_value=100.0,
+        value=80.0,
+        step=0.05,
+        format="%.2f%%",
+        help="Percentage of position to hedge",
+        key="hedge_ratio_outside"
+    ) 
+    # This caption will now update immediately!
+    st.caption(f"Hedging {hedge_ratio:.2f}% of the position")
+    
+    # ===============================================
+    # NOW THE SIMPLIFIED FORM
+    # ===============================================
+    
     with st.form("add_position_form", clear_on_submit=True):
         position_name = st.text_input(
             "Position Name:",
@@ -346,11 +436,8 @@ def portfolio_builder_sidebar():
             help="Unique identifier for this position"
         )
         
-        commodity = st.selectbox(
-            "Commodity:",
-            options=["WTI Crude Oil", "Brent Crude Oil", "Natural Gas"],
-            help="Select commodity type"
-        )
+        # Note: commodity is now selected outside the form
+        st.info(f"📊 Selected: {commodity}")
         
         col1, col2 = st.columns(2)
         
@@ -374,88 +461,22 @@ def portfolio_builder_sidebar():
         if position_direction == "Short":
             position_size = -position_size
         
-        hedge_ratio = st.slider(
-            "Hedge Ratio:",
-            min_value=0.0,
-            max_value=100.0,
-            value=80.0,
-            step=0.05,
-            format="%.2f%%",
-            help="Percentage of position to hedge"
-        ) 
-        st.caption(f"Hedging {hedge_ratio:.2f}% of the position")
+        # Show current selections
+        st.info(f"🛡️ Strategy: {strategy} | Hedge Ratio: {hedge_ratio:.1f}%")
         
-        strategy = st.selectbox(
-            "Strategy:",
-            options=["Futures", "Options"],
-            help="Hedging instrument"
-        )
-        
-        strike_price = None
-        option_expiry = None
-        
-        if strategy == "Options":
-            st.markdown("**⚙️ Options Parameters:**")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                try:
-                    current_price = get_current_price(commodity)
-                    strike_price = st.slider(
-                        "Strike Price ($):",
-                        min_value=float(current_price * 0.7),
-                        max_value=float(current_price * 1.3),
-                        value=float(current_price),
-                        step=0.5,
-                        help="Option strike price",
-                        key="portfolio_strike_price"
-                    )
-                    
-                    moneyness = current_price / strike_price
-                    if abs(moneyness - 1.0) < 0.05:
-                        st.caption("🎯 At-the-Money (ATM)")
-                    elif moneyness > 1.05:
-                        st.caption("📉 Out-of-the-Money (OTM)")
-                    else:
-                        st.caption("📈 In-the-Money (ITM)")
-                        
-                except Exception as e:
-                    st.warning(f"Could not fetch current price: {e}")
-                    strike_price = st.number_input(
-                        "Strike Price ($):", 
-                        value=75.0, 
-                        min_value=1.0, 
-                        max_value=200.0,
-                        step=0.5,
-                        key="portfolio_strike_fallback"
-                    )
-            
-            with col2:
-                option_expiry = st.selectbox(
-                    "Option Maturity:",
-                    options=[1, 3, 6, 12],
-                    index=1,
-                    format_func=lambda x: f"{x} month{'s' if x > 1 else ''}",
-                    help="Time until option expiration",
-                    key="portfolio_option_expiry"
-                )
-                
-                # Show option type
-                option_type = "Put" if position_direction == "Long" else "Call"
-                st.caption(f"📊 Recommended: {option_type} Option")
-            
-            st.markdown("---")
+        if strategy == "Options" and strike_price:
+            option_type = "Put" if position_direction == "Long" else "Call"
+            st.info(f"📈 {option_type} Option | Strike: ${strike_price:.2f} | Maturity: {option_expiry} months")
         
         submitted = st.form_submit_button("🔥 Add Position", type="primary", use_container_width=True)
         
         if submitted and position_name:
             if position_name not in st.session_state.portfolio_manager.positions:
                 new_position = Position(
-                    commodity=commodity,
+                    commodity=commodity,  # Use the commodity from outside the form
                     size=position_size,
-                    hedge_ratio=hedge_ratio,
-                    strategy=strategy,
+                    hedge_ratio=hedge_ratio/100.0,  # Convert percentage to decimal
+                    strategy=strategy,  # Use the strategy from outside the form
                     strike_price=strike_price
                 )
                 
