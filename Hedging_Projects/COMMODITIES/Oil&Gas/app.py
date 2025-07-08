@@ -353,7 +353,7 @@ def portfolio_interface():
 
 
 def portfolio_builder_sidebar():
-    """Portfolio builder sidebar."""
+    """Portfolio builder sidebar - FIXED VERSION."""
     st.markdown('<div class="section-header">🏗️ Portfolio Builder</div>', unsafe_allow_html=True)
     
     portfolio = st.session_state.portfolio_manager
@@ -417,11 +417,9 @@ def portfolio_builder_sidebar():
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Add new position form
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-title">➕ Add New Position</div>', unsafe_allow_html=True)
-    
-# Strategy selection OUTSIDE the form
+
     strategy = st.selectbox(
         "Strategy:",
         options=["Futures", "Options"],
@@ -429,15 +427,6 @@ def portfolio_builder_sidebar():
         key="strategy_selector"
     )
     
-    # Commodity selection OUTSIDE the form (needed for options pricing)
-    commodity = st.selectbox(
-        "Commodity:",
-        options=["WTI Crude Oil", "Brent Crude Oil", "Natural Gas"],
-        help="Select commodity type",
-        key="commodity_selector_outside"
-    )
-    
-    # Options parameters OUTSIDE the form - now they update immediately!
     strike_price = None
     option_expiry = None
     
@@ -448,7 +437,8 @@ def portfolio_builder_sidebar():
         
         with col1:
             try:
-                current_price = get_current_price(commodity)
+                preview_commodity = "WTI Crude Oil"
+                current_price = get_current_price(preview_commodity)
                 strike_price = st.slider(
                     "Strike Price ($):",
                     min_value=float(current_price * 0.7),
@@ -488,12 +478,10 @@ def portfolio_builder_sidebar():
                 key="portfolio_option_expiry"
             )
             
-            # Show option type based on position direction (we'll get this from form)
             st.caption("📊 Option type will be determined by position direction")
         
         st.markdown("---")
     
-    # Hedge ratio OUTSIDE the form so it updates dynamically
     hedge_ratio = st.slider(
         "Hedge Ratio:",
         min_value=0.0,
@@ -504,12 +492,7 @@ def portfolio_builder_sidebar():
         help="Percentage of position to hedge",
         key="hedge_ratio_outside"
     ) 
-    # This caption will now update immediately!
     st.caption(f"Hedging {hedge_ratio:.2f}% of the position")
-    
-    # ===============================================
-    # NOW THE SIMPLIFIED FORM
-    # ===============================================
     
     with st.form("add_position_form", clear_on_submit=True):
         position_name = st.text_input(
@@ -518,8 +501,12 @@ def portfolio_builder_sidebar():
             help="Unique identifier for this position"
         )
         
-        # Note: commodity is now selected outside the form
-        st.info(f"📊 Selected: {commodity}")
+        commodity = st.selectbox(
+            "Commodity:",
+            options=["WTI Crude Oil", "Brent Crude Oil", "Natural Gas"],
+            help="Select commodity type",
+            key="commodity_selector_form"
+        )
         
         col1, col2 = st.columns(2)
         
@@ -543,7 +530,6 @@ def portfolio_builder_sidebar():
         if position_direction == "Short":
             position_size = -position_size
         
-        # Show current selections
         st.info(f"🛡️ Strategy: {strategy} | Hedge Ratio: {hedge_ratio:.1f}%")
         
         if strategy == "Options" and strike_price:
@@ -554,12 +540,21 @@ def portfolio_builder_sidebar():
         
         if submitted and position_name:
             if position_name not in st.session_state.portfolio_manager.positions:
+                # Adjust strike price based on selected commodity if different from preview
+                final_strike_price = strike_price
+                if strategy == "Options" and commodity != "WTI Crude Oil":
+                    try:
+                        commodity_price = get_current_price(commodity)
+                        final_strike_price = commodity_price
+                    except:
+                        final_strike_price = strike_price
+                
                 new_position = Position(
-                    commodity=commodity,  # Use the commodity from outside the form
+                    commodity=commodity,
                     size=position_size,
                     hedge_ratio=hedge_ratio/100.0,  # Convert percentage to decimal
-                    strategy=strategy,  # Use the strategy from outside the form
-                    strike_price=strike_price
+                    strategy=strategy,
+                    strike_price=final_strike_price
                 )
                 
                 st.session_state.portfolio_manager.add_position(position_name, new_position)
@@ -570,7 +565,6 @@ def portfolio_builder_sidebar():
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Current positions
     if len(portfolio) > 0:
         st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         st.markdown('<div class="sidebar-title">📋 Current Positions</div>', unsafe_allow_html=True)
@@ -602,7 +596,6 @@ def portfolio_builder_sidebar():
         
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Analysis settings
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-title">⚙️ Analysis Settings</div>', unsafe_allow_html=True)
     
