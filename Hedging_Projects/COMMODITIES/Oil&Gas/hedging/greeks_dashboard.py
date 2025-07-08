@@ -45,11 +45,7 @@ class GreeksDashboard:
             risk_free_rate = get_risk_free_rate()
             volatility = get_commodity_volatility(position.commodity)
             
-            # Determine option type based on position
-            if position.size > 0:  # Long underlying -> need put protection
-                option_type = 'put'
-            else:  # Short underlying -> need call protection
-                option_type = 'call'
+            option_type = position.option_type.lower() if position.option_type else 'put'
             
             greeks = BlackScholesCalculator.calculate_greeks(
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
