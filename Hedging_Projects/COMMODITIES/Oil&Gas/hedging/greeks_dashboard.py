@@ -15,7 +15,6 @@ from typing import Dict, List, Optional, Tuple
 import warnings
 warnings.filterwarnings('ignore')
 
-# Import our options math module
 from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
 
 
@@ -29,7 +28,7 @@ class GreeksDashboard:
     
     @staticmethod
     def _calculate_position_greeks(position) -> Dict[str, float]:
-        """Calculate Greeks for a single position."""
+        """ Calculate Greeks for a single position """
         try:
             if position.strategy != "Options" or not position.strike_price:
                 return {
@@ -40,10 +39,9 @@ class GreeksDashboard:
                     'rho': 0.0
                 }
             
-            # Get current market data
             current_price = position.current_price
             strike = position.strike_price
-            time_to_exp = time_to_expiration(3)  # Default 3 months
+            time_to_exp = time_to_expiration(3)  # 3 months
             risk_free_rate = get_risk_free_rate()
             volatility = get_commodity_volatility(position.commodity)
             
@@ -53,12 +51,10 @@ class GreeksDashboard:
             else:  # Short underlying -> need call protection
                 option_type = 'call'
             
-            # Calculate Greeks
             greeks = BlackScholesCalculator.calculate_greeks(
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
             )
             
-            # Scale by position size and hedge ratio
             position_multiplier = abs(position.size) * position.hedge_ratio
             
             return {
@@ -81,10 +77,10 @@ class GreeksDashboard:
     
     @staticmethod
     def create_greeks_heatmap(portfolio_positions: Dict) -> go.Figure:
-        """Create heatmap of Greeks across all positions."""
+        """ Create heatmap of Greeks across all positions """
         
         if not portfolio_positions:
-            # Create empty heatmap
+            # Empty heatmap
             fig = go.Figure()
             fig.add_annotation(
                 text="No options positions to display",
@@ -100,7 +96,6 @@ class GreeksDashboard:
             )
             return fig
         
-        # Calculate Greeks for each position
         greeks_data = []
         position_names = []
         
@@ -117,7 +112,6 @@ class GreeksDashboard:
                 position_names.append(name)
         
         if not greeks_data:
-            # No options positions
             fig = go.Figure()
             fig.add_annotation(
                 text="No options positions found",
@@ -131,11 +125,9 @@ class GreeksDashboard:
             )
             return fig
         
-        # Create heatmap
         greeks_names = ['Delta', 'Gamma', 'Theta', 'Vega', 'Rho']
         greeks_array = np.array(greeks_data)
         
-        # Normalize for better visualization
         normalized_data = np.zeros_like(greeks_array)
         for i in range(greeks_array.shape[1]):
             col = greeks_array[:, i]
@@ -172,7 +164,7 @@ class GreeksDashboard:
     
     @staticmethod
     def create_delta_exposure_chart(portfolio_positions: Dict) -> go.Figure:
-        """Create delta exposure visualization."""
+        """ Create delta exposure visualization """
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -185,7 +177,6 @@ class GreeksDashboard:
             fig.update_layout(title="Delta Exposure", height=350)
             return fig
         
-        # Calculate delta exposure by commodity
         delta_by_commodity = {}
         position_deltas = []
         position_names = []
@@ -195,7 +186,6 @@ class GreeksDashboard:
                 greeks = GreeksDashboard._calculate_position_greeks(position)
                 delta = greeks['delta']
                 
-                # Aggregate by commodity
                 commodity = position.commodity
                 if commodity not in delta_by_commodity:
                     delta_by_commodity[commodity] = 0
@@ -215,7 +205,6 @@ class GreeksDashboard:
             fig.update_layout(title="Delta Exposure", height=350)
             return fig
         
-        # Create subplot with two charts
         fig = make_subplots(
             rows=1, cols=2,
             subplot_titles=("Delta by Position", "Delta by Commodity"),
@@ -269,7 +258,6 @@ class GreeksDashboard:
             font=dict(family="Inter", size=10)
         )
         
-        # Add zero line
         fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=1, col=1)
         fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=1, col=2)
         
@@ -277,7 +265,7 @@ class GreeksDashboard:
     
     @staticmethod
     def create_gamma_risk_chart(portfolio_positions: Dict) -> go.Figure:
-        """Create gamma risk (convexity) visualization."""
+        """ Create gamma risk (convexity) visualization """
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -290,7 +278,6 @@ class GreeksDashboard:
             fig.update_layout(title="Gamma Risk", height=350)
             return fig
         
-        # Calculate gamma for each position
         gamma_data = []
         position_names = []
         
@@ -323,7 +310,6 @@ class GreeksDashboard:
         
         fig = go.Figure()
         
-        # Color by commodity
         commodities = df['commodity'].unique()
         colors = ['#667eea', '#764ba2', '#4ECDC4', '#FF6B6B', '#48bb78']
         
@@ -369,7 +355,7 @@ class GreeksDashboard:
     
     @staticmethod
     def create_theta_decay_chart(portfolio_positions: Dict) -> go.Figure:
-        """Create time decay (theta) visualization."""
+        """ Create time decay (theta) visualization """
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -382,7 +368,6 @@ class GreeksDashboard:
             fig.update_layout(title="Theta Decay", height=350)
             return fig
         
-        # Calculate theta decay over time
         theta_data = []
         position_names = []
         
@@ -405,10 +390,9 @@ class GreeksDashboard:
             fig.update_layout(title="Theta Decay", height=350)
             return fig
         
-        # Create theta decay chart
         fig = go.Figure()
         
-        # Calculate cumulative theta decay over 30 days
+        # Cumulative theta decay over 30 days
         days = np.arange(0, 31)
         cumulative_theta = np.zeros(len(days))
         
@@ -426,7 +410,6 @@ class GreeksDashboard:
             fillcolor='rgba(255, 107, 107, 0.1)'
         ))
         
-        # Add daily theta line
         daily_theta = [np.sum(theta_data)] * len(days)
         fig.add_trace(go.Scatter(
             x=days,
@@ -460,7 +443,7 @@ class GreeksDashboard:
     
     @staticmethod
     def create_vega_sensitivity_chart(portfolio_positions: Dict) -> go.Figure:
-        """Create volatility sensitivity (vega) visualization."""
+        """ Create volatility sensitivity (vega) visualization """
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -473,7 +456,6 @@ class GreeksDashboard:
             fig.update_layout(title="Vega Sensitivity", height=350)
             return fig
         
-        # Calculate vega sensitivity
         vega_data = []
         position_names = []
         
@@ -499,15 +481,15 @@ class GreeksDashboard:
             fig.update_layout(title="Vega Sensitivity", height=350)
             return fig
         
-        # Create vega sensitivity chart
+        # Vega sensitivity chart
         df = pd.DataFrame(vega_data)
         
-        # Create volatility shock scenarios
+        # Colatility shock scenarios
         vol_shocks = np.arange(-10, 11, 1)  # -10% to +10% vol shocks
         
         fig = go.Figure()
         
-        # Plot each position's vega sensitivity
+        # Each position's vega sensitivity
         colors = ['#4ECDC4', '#FF6B6B', '#48bb78', '#667eea', '#f39c12']
         
         for i, (_, row) in enumerate(df.iterrows()):
@@ -522,7 +504,7 @@ class GreeksDashboard:
                 marker=dict(size=5)
             ))
         
-        # Add net portfolio vega
+        # Net portfolio vega
         total_vega = df['vega'].sum()
         net_pnl_impact = total_vega * vol_shocks
         
@@ -556,9 +538,8 @@ class GreeksDashboard:
     
     @staticmethod
     def render_greeks_summary_cards(portfolio_positions: Dict):
-        """Render summary cards for portfolio Greeks."""
+        """ Render summary cards for portfolio Greeks """
         
-        # Calculate net portfolio Greeks
         net_greeks = {
             'delta': 0.0,
             'gamma': 0.0,
@@ -581,7 +562,7 @@ class GreeksDashboard:
             st.info("📊 No options positions found. Add options positions to see Greeks analysis.")
             return
         
-        # Display summary cards
+        # Summary cards
         col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
@@ -634,7 +615,6 @@ class GreeksDashboard:
             </div>
             """, unsafe_allow_html=True)
         
-        # Risk interpretation
         st.markdown("### 📊 Risk Interpretation")
         
         col1, col2 = st.columns(2)
@@ -675,15 +655,13 @@ class GreeksDashboard:
     
     @staticmethod
     def render_real_time_greeks_monitor(portfolio_positions: Dict):
-        """Render real-time Greeks monitoring interface."""
+        """ Render real-time Greeks monitoring interface """
         
         st.markdown("**⚡ Real-Time Greeks Monitor**")
         
-        # Create auto-refreshing display
         if st.button("🔄 Refresh Greeks", type="secondary"):
             st.rerun()
         
-        # Create detailed Greeks table
         greeks_table_data = []
         
         for name, position in portfolio_positions.items():
@@ -724,7 +702,7 @@ class GreeksDashboard:
     
     @staticmethod
     def create_scenario_analysis_chart(portfolio_positions: Dict) -> go.Figure:
-        """Create scenario analysis for portfolio Greeks."""
+        """ Create scenario analysis for portfolio Greeks """
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -737,7 +715,6 @@ class GreeksDashboard:
             fig.update_layout(title="Scenario Analysis", height=400)
             return fig
         
-        # Define scenarios
         scenarios = [
             {"name": "Base Case", "price_shock": 0.0, "vol_shock": 0.0},
             {"name": "Bull Market", "price_shock": 0.10, "vol_shock": -0.02},
@@ -747,7 +724,7 @@ class GreeksDashboard:
             {"name": "Crisis", "price_shock": -0.20, "vol_shock": 0.10}
         ]
         
-        # Calculate scenario impacts
+        # Scenario impacts
         scenario_results = []
         
         for scenario in scenarios:
@@ -757,7 +734,7 @@ class GreeksDashboard:
                 if position.strategy == "Options":
                     greeks = GreeksDashboard._calculate_position_greeks(position)
                     
-                    # Calculate P&L impact
+                    # P&L impact
                     current_price = position.current_price
                     price_change = current_price * scenario["price_shock"]
                     
@@ -773,7 +750,7 @@ class GreeksDashboard:
                 'pnl': total_pnl
             })
         
-        # Create scenario chart
+        # Scenario chart
         df = pd.DataFrame(scenario_results)
         
         fig = go.Figure()
@@ -809,26 +786,17 @@ class GreeksDashboard:
 
 
 class GreeksMonitor:
-    """
-    Real-time Greeks monitoring and alerting system.
-    """
+    """ Real-time Greeks monitoring and alerting system """
     
     @staticmethod
     def check_risk_limits(portfolio_positions: Dict) -> Dict[str, List[str]]:
-        """
-        Check portfolio Greeks against predefined risk limits.
-        
-        Returns:
-        --------
-        Dict with risk alerts by category
-        """
+        """ nCheck portfolio Greeks against predefined risk limits """
         alerts = {
             'critical': [],
             'warning': [],
             'info': []
         }
         
-        # Calculate net Greeks
         net_greeks = {
             'delta': 0.0,
             'gamma': 0.0,
@@ -843,7 +811,6 @@ class GreeksMonitor:
                 for greek_name, greek_value in greeks.items():
                     net_greeks[greek_name] += greek_value
         
-        # Define risk limits
         limits = {
             'delta': {'critical': 1.0, 'warning': 0.5},
             'gamma': {'critical': 0.1, 'warning': 0.05},
@@ -851,7 +818,6 @@ class GreeksMonitor:
             'vega': {'critical': 500, 'warning': 200}
         }
         
-        # Check limits
         for greek_name, greek_value in net_greeks.items():
             if greek_name in limits:
                 limit = limits[greek_name]
@@ -867,7 +833,7 @@ class GreeksMonitor:
                     elif abs(greek_value) > limit['warning']:
                         alerts['warning'].append(f"Moderate {greek_name} exposure: {greek_value:.3f}")
         
-        # Add positive alerts
+        # Alerts
         if len(alerts['critical']) == 0 and len(alerts['warning']) == 0:
             alerts['info'].append("All Greeks within acceptable risk limits")
         
@@ -875,7 +841,7 @@ class GreeksMonitor:
     
     @staticmethod
     def render_risk_alerts(portfolio_positions: Dict):
-        """Render risk alerts dashboard."""
+        """ Render risk alerts dashboard """
         
         alerts = GreeksMonitor.check_risk_limits(portfolio_positions)
         
@@ -902,7 +868,7 @@ class GreeksMonitor:
         
         st.markdown("### 📊 Overall Risk Score")
         
-        # Create risk gauge
+        # Risk gauge
         fig = go.Figure(go.Indicator(
             mode = "gauge+number+delta",
             value = risk_score,
@@ -930,7 +896,7 @@ class GreeksMonitor:
     
     @staticmethod
     def create_greeks_evolution_chart(portfolio_positions: Dict, days_ahead: int = 30) -> go.Figure:
-        """Create chart showing how Greeks evolve over time."""
+        """ Create chart showing how Greeks evolve over time """
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -943,7 +909,7 @@ class GreeksMonitor:
             fig.update_layout(title="Greeks Evolution", height=400)
             return fig
         
-        # Calculate Greeks evolution
+        # Greeks evolution
         days = np.arange(0, days_ahead + 1)
         
         delta_evolution = []
@@ -959,7 +925,6 @@ class GreeksMonitor:
             
             for position in portfolio_positions.values():
                 if position.strategy == "Options":
-                    # Simulate time decay
                     current_price = position.current_price
                     strike = position.strike_price
                     original_time = time_to_expiration(3)  # 3 months
@@ -985,7 +950,6 @@ class GreeksMonitor:
             theta_evolution.append(daily_theta)
             vega_evolution.append(daily_vega)
         
-        # Create evolution chart
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=("Delta Evolution", "Gamma Evolution", "Theta Evolution", "Vega Evolution"),
@@ -1029,7 +993,6 @@ class GreeksMonitor:
             font=dict(family="Inter", size=10)
         )
         
-        # Update x-axis labels
         fig.update_xaxes(title_text="Days", row=2, col=1)
         fig.update_xaxes(title_text="Days", row=2, col=2)
         
@@ -1037,7 +1000,7 @@ class GreeksMonitor:
 
 
 def render_enhanced_greeks_tab(portfolio, analysis_ready):
-    """ Enhanced Greeks monitoring tab for the main application. """
+    """ Greeks monitoring tab for the main application """
     
     st.markdown('<div class="section-header">📈 Real-Time Greeks Monitor</div>', unsafe_allow_html=True)
     
@@ -1086,7 +1049,6 @@ def render_enhanced_greeks_tab(portfolio, analysis_ready):
             vega_chart = GreeksDashboard.create_vega_sensitivity_chart(portfolio.positions)
             st.plotly_chart(vega_chart, use_container_width=True)
         
-        # Greeks heatmap
         st.markdown("### 🔥 Portfolio Greeks Heatmap")
         heatmap = GreeksDashboard.create_greeks_heatmap(portfolio.positions)
         st.plotly_chart(heatmap, use_container_width=True)
@@ -1120,7 +1082,6 @@ def render_enhanced_greeks_tab(portfolio, analysis_ready):
     
     st.markdown("---")
     
-    # Real-time monitoring
     st.markdown("### ⚡ Real-Time Greeks Monitor")
     GreeksDashboard.render_real_time_greeks_monitor(portfolio.positions)
 
