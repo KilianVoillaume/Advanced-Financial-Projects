@@ -394,8 +394,7 @@ def portfolio_builder_sidebar():
             format="%.2f%%",
             help="Percentage of position to hedge"
         ) 
-        
-        st.caption(f"Hedging {hedge_ratio*100:.2f}% of the position")
+        st.caption(f"Hedging {hedge_ratio:.2f}% of the position")
         
         strategy = st.selectbox(
             "Strategy:",
