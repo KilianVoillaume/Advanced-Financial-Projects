@@ -842,7 +842,7 @@ def risk_analysis_tab(portfolio, analysis_ready):
                 line_color="#dc3545",
                 line_width=4,
                 annotation_text=f"CVaR (95%): ${cvar_95:,.0f}",
-                annotation_position="top"
+                annotation_position="bottom"
             )
             
             fig_dist.update_layout(
