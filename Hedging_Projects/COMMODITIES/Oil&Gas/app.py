@@ -244,7 +244,7 @@ def main():
     """, unsafe_allow_html=True)
     
     # Centered mode selection with better styling
-    col1, col2, col3 = st.columns([2, 2, 2])
+    col1, col2, col3 = st.columns([1, 1, 1])
     
     with col2:
         mode_option = st.radio(
