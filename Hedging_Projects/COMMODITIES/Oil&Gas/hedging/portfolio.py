@@ -85,6 +85,10 @@ class Position:
         try:
             from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
             
+            # TO DEBUG, TO DELETE AFTER EVEYTHING IS CLEAN -------------------------------------------------------------------------
+            print(f"DEBUG: Position {self.size}, option_type: {self.option_type}")
+
+
             current_price = self.current_price
             strike = self.strike_price
             time_to_exp = time_to_expiration(3)  # 3 months 
@@ -93,6 +97,9 @@ class Position:
             
             option_type = self.option_type.lower() if self.option_type else 'put'
             
+            # TO DEBUG, TO DELETE AFTER EVEYTHING IS CLEAN -------------------------------------------------------------------------
+            print(f"DEBUG: Using option_type: {option_type}")
+
             greeks = BlackScholesCalculator.calculate_greeks(
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
             )
