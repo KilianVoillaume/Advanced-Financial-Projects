@@ -18,11 +18,9 @@ from hedging.strategies import compute_payoff_diagram, get_hedge_summary
 from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
 from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison
 from hedging.stress_testing import STRESS_SCENARIOS
-from hedging.portfolio import (
-    PortfolioManager, Position, 
-    create_oil_position, create_gas_position, create_brent_position,
-    create_sample_portfolio
-)
+from hedging.portfolio import (PortfolioManager, Position, create_oil_position, create_gas_position, create_brent_position, create_sample_portfolio)
+from hedging.greeks_dashboard import GreeksDashboard, GreeksMonitor, render_enhanced_greeks_tab
+
 
 # Page configuration
 st.set_page_config(
@@ -554,7 +552,7 @@ def portfolio_builder_sidebar():
 
 
 def portfolio_dashboard():
-    """Portfolio dashboard."""
+    """Portfolio dashboard with enhanced Greeks monitoring."""
     portfolio = st.session_state.portfolio_manager
     
     if len(portfolio) == 0:
@@ -581,10 +579,11 @@ def portfolio_dashboard():
             st.error(f"Error in analytics: {e}")
             analysis_ready = False
     
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Overview", 
         "🔗 Correlations", 
         "⚠️ Risk Analysis", 
+        "📈 Greeks Monitor",  # NEW TAB
         "🧪 Stress Testing"
     ])
     
@@ -594,7 +593,9 @@ def portfolio_dashboard():
         correlations_tab(portfolio, analysis_ready)
     with tab3:
         risk_analysis_tab(portfolio, analysis_ready)
-    with tab4:
+    with tab4:  # NEW TAB IMPLEMENTATION
+        render_enhanced_greeks_tab(portfolio, analysis_ready)
+    with tab5:
         stress_testing_tab(portfolio, analysis_ready)
 
 
