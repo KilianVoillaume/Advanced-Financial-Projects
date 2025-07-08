@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 
 # Import our options math module
 from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
-
+from hedging.portfolio import PositionType
 
 class GreeksDashboard:
     """Updated Greeks dashboard with fixed calculation."""
