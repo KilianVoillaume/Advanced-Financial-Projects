@@ -1076,7 +1076,7 @@ def single_position_interface():
         hedge_ratio = st.slider(
             "Hedge Ratio:",
             min_value=0.0,
-            max_value=1.0,
+            max_value=100.0,
             value=0.8,
             step=0.05,
             help="Percentage of position to hedge"
