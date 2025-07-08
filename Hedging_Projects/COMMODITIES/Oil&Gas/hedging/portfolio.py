@@ -7,6 +7,7 @@ Handles portfolio construction, risk analytics, and optimization.
 
 import pandas as pd
 import numpy as np
+from enum import Enum
 from typing import Dict, List, Optional, Union, Tuple, Literal
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
