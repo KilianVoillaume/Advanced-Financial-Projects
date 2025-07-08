@@ -24,6 +24,7 @@ class Position:
     hedge_ratio: float
     strategy: str = "Futures"
     strike_price: Optional[float] = None
+    option_type: Optional[str] = None
     current_price: Optional[float] = None
     
     def __post_init__(self):
@@ -90,7 +91,7 @@ class Position:
             risk_free_rate = get_risk_free_rate()
             volatility = get_commodity_volatility(self.commodity)
             
-            option_type = 'put' if self.size > 0 else 'call'
+            option_type = self.option_type.lower() if self.option_type else 'put'
             
             greeks = BlackScholesCalculator.calculate_greeks(
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
@@ -488,36 +489,39 @@ class PortfolioManager:
         return f"PortfolioManager(positions={len(self.positions)}, total_notional=${sum(pos.notional_value for pos in self.positions.values()):,.0f})"
 
 
-def create_oil_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
+def create_oil_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None, option_type: Optional[str] = None) -> Position:
     """ Create WTI Crude Oil position """
     return Position(
         commodity="WTI Crude Oil",
         size=size,
         hedge_ratio=hedge_ratio,
         strategy=strategy,
-        strike_price=strike_price
+        strike_price=strike_price,
+        option_type=option_type
     )
 
 
-def create_gas_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
+def create_gas_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None, option_type: Optional[str] = None) -> Position:
     """ Create Natural Gas position """
     return Position(
         commodity="Natural Gas",
         size=size,
         hedge_ratio=hedge_ratio,
         strategy=strategy,
-        strike_price=strike_price
+        strike_price=strike_price,
+        option_type=option_type
     )
 
 
-def create_brent_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
+def create_brent_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None, option_type: Optional[str] = None) -> Position:
     """ Create Brent Crude Oil position """
     return Position(
         commodity="Brent Crude Oil",
         size=size,
         hedge_ratio=hedge_ratio,
         strategy=strategy,
-        strike_price=strike_price
+        strike_price=strike_price,
+        option_type=option_type
     )
 
 
