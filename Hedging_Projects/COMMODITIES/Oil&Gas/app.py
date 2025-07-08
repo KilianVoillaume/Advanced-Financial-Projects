@@ -1,6 +1,5 @@
 """
-app.py - Improved Oil & Gas Hedging Platform
-
+app.py 
 """
 
 import streamlit as st
@@ -12,7 +11,6 @@ from plotly.subplots import make_subplots
 import warnings
 warnings.filterwarnings('ignore')
 
-# Import all modules
 from hedging.data import get_prices, get_current_price, get_available_commodities
 from hedging.strategies import compute_payoff_diagram, get_hedge_summary
 from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
@@ -22,7 +20,6 @@ from hedging.portfolio import (PortfolioManager, Position, create_oil_position, 
 from hedging.greeks_dashboard import GreeksDashboard, GreeksMonitor, render_enhanced_greeks_tab
 
 
-# Page configuration
 st.set_page_config(
     page_title="Oil & Gas Hedging Platform",
     page_icon="🛢️",
@@ -30,7 +27,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS styling
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -251,7 +247,6 @@ st.markdown("""
 
 
 def initialize_session_state():
-    """Initialize session state variables."""
     if 'portfolio_mode' not in st.session_state:
         st.session_state.portfolio_mode = True
     if 'portfolio_manager' not in st.session_state:
@@ -263,7 +258,6 @@ def initialize_session_state():
 
 
 def main():
-    """Main application function."""
     initialize_session_state()
     
     st.markdown("""
@@ -273,7 +267,6 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Centered mode selection with better styling
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col2:
@@ -314,7 +307,6 @@ def create_sample_options_portfolio():
     """Create a sample portfolio with options positions for testing Greeks dashboard."""
     portfolio = PortfolioManager()
     
-    # Add some options positions
     portfolio.add_position("oil_hedge", Position(
         commodity="WTI Crude Oil",
         size=1000,  # Long 1000 barrels
@@ -343,9 +335,7 @@ def create_sample_options_portfolio():
 
 def portfolio_interface():
     """Portfolio management interface."""
-    
     col1, col2 = st.columns([1, 2])
-    
     with col1:
         portfolio_builder_sidebar()
     with col2:
@@ -353,7 +343,7 @@ def portfolio_interface():
 
 
 def portfolio_builder_sidebar():
-    """Portfolio builder sidebar - FIXED VERSION."""
+    """Portfolio builder sidebar """
     st.markdown('<div class="section-header">🏗️ Portfolio Builder</div>', unsafe_allow_html=True)
     
     portfolio = st.session_state.portfolio_manager
@@ -382,7 +372,6 @@ def portfolio_builder_sidebar():
         </div>
         """, unsafe_allow_html=True)
     
-    # Quick actions
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-title">🚀 Quick Actions</div>', unsafe_allow_html=True)
     
@@ -479,7 +468,6 @@ def portfolio_builder_sidebar():
             )
             
             st.caption("📊 Option type will be determined by position direction")
-        
         st.markdown("---")
     
     hedge_ratio = st.slider(
@@ -540,7 +528,6 @@ def portfolio_builder_sidebar():
         
         if submitted and position_name:
             if position_name not in st.session_state.portfolio_manager.positions:
-                # Adjust strike price based on selected commodity if different from preview
                 final_strike_price = strike_price
                 if strategy == "Options" and commodity != "WTI Crude Oil":
                     try:
@@ -629,7 +616,7 @@ def portfolio_builder_sidebar():
 
 
 def portfolio_dashboard():
-    """Portfolio dashboard with enhanced Greeks monitoring."""
+    """ Portfolio dashboard with enhanced Greeks monitoring. """
     portfolio = st.session_state.portfolio_manager
     
     if len(portfolio) == 0:
@@ -660,7 +647,7 @@ def portfolio_dashboard():
         "📊 Overview", 
         "🔗 Correlations", 
         "⚠️ Risk Analysis", 
-        "📈 Greeks Monitor",  # NEW TAB
+        "📈 Greeks Monitor",
         "🧪 Stress Testing"
     ])
     
@@ -670,20 +657,19 @@ def portfolio_dashboard():
         correlations_tab(portfolio, analysis_ready)
     with tab3:
         risk_analysis_tab(portfolio, analysis_ready)
-    with tab4:  # NEW TAB IMPLEMENTATION
+    with tab4: 
         render_enhanced_greeks_tab(portfolio, analysis_ready)
     with tab5:
         stress_testing_tab(portfolio, analysis_ready)
 
 
 def portfolio_overview_tab(portfolio, analysis_ready):
-    """Portfolio overview tab with improved risk metrics display."""
+    """ Portfolio overview tab with improved risk metrics display. """
     st.markdown('<div class="section-header">📊 Portfolio Composition</div>', unsafe_allow_html=True)
     
     if analysis_ready:
         risk_summary = portfolio.get_portfolio_risk_summary()
         if risk_summary:
-            # Display metrics in a grid to avoid overlapping
             st.markdown('<div class="risk-metrics-grid">', unsafe_allow_html=True)
             
             col1, col2, col3, col4 = st.columns(4)
@@ -729,7 +715,6 @@ def portfolio_overview_tab(portfolio, analysis_ready):
                     </div>
                     """, unsafe_allow_html=True)
             
-            # Second row of metrics
             if len(metrics) > 4:
                 col1, col2, col3, col4 = st.columns(4)
                 
@@ -774,7 +759,6 @@ def portfolio_overview_tab(portfolio, analysis_ready):
             
             st.markdown('</div>', unsafe_allow_html=True)
     
-    # Portfolio composition
     col1, col2 = st.columns([1.5, 1])
     
     with col1:
@@ -834,7 +818,7 @@ def portfolio_overview_tab(portfolio, analysis_ready):
 
 
 def correlations_tab(portfolio, analysis_ready):
-    """Correlations analysis tab."""
+    """ Correlations analysis tab """
     st.markdown('<div class="section-header">🔗 Cross-Commodity Correlations</div>', unsafe_allow_html=True)
     
     if not analysis_ready:
@@ -878,7 +862,7 @@ def correlations_tab(portfolio, analysis_ready):
 
 
 def risk_analysis_tab(portfolio, analysis_ready):
-    """Risk analysis tab with improved metrics display."""
+    """ Risk analysis tab with improved metrics display """
     st.markdown('<div class="section-header">⚠️ Portfolio Risk Analysis</div>', unsafe_allow_html=True)
     
     if not analysis_ready:
@@ -1112,7 +1096,6 @@ def single_position_interface():
     """Improved single position interface."""
     st.markdown('<div class="section-header">🎯 Single Position Analysis</div>', unsafe_allow_html=True)
     
-    # Better layout with wider main area
     col1, col2 = st.columns([1, 2])
     
     with col1:
@@ -1159,7 +1142,6 @@ def single_position_interface():
             help="Hedging instrument"
         )
         
-        # Fixed hedge ratio slider with proper formatting
         hedge_ratio = st.slider(
             "Hedge Ratio:",
             min_value=0.0,
@@ -1271,7 +1253,6 @@ def single_position_interface():
                     st.error(f"❌ Error: {str(e)}")
                     st.session_state.simulation_run = False
         
-        # Display results
         if st.session_state.single_position_results:
             display_single_position_results()
         else:
@@ -1292,7 +1273,6 @@ def display_single_position_results():
     results = st.session_state.single_position_results
     params = results['params']
     
-    # Quick summary
     st.markdown("### 📋 Position Summary")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -1332,7 +1312,6 @@ def display_single_position_results():
         </div>
         """, unsafe_allow_html=True)
     
-    # Tabs for detailed analysis
     tab1, tab2, tab3 = st.tabs(["📊 Payoff Analysis", "📈 Risk Metrics", "🧪 Stress Tests"])
     
     with tab1:
@@ -1347,7 +1326,6 @@ def display_payoff_analysis(results):
     """Display payoff analysis charts."""
     payoff_data = results['payoff_data']
     
-    # Payoff diagram
     fig_payoff = go.Figure()
     
     fig_payoff.add_trace(go.Scatter(
@@ -1393,13 +1371,11 @@ def display_risk_metrics(results):
     hedged_risk = results['hedged_risk']
     unhedged_risk = results['unhedged_risk']
     
-    # Risk comparison table
     risk_comparison = summarize_risk_comparison(hedged_risk, unhedged_risk)
     
     st.markdown("### 📊 Risk Metrics Comparison")
     st.dataframe(risk_comparison, use_container_width=True, hide_index=True)
     
-    # Hedging effectiveness
     effectiveness = compare_hedging_effectiveness(
         results['sim_results']['hedged_pnl'], 
         results['sim_results']['unhedged_pnl']
