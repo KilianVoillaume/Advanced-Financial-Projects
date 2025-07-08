@@ -458,6 +458,14 @@ def portfolio_builder_sidebar():
                 )
         
         with col2:
+            option_type = st.selectbox(
+            "Option Type:",
+            options=["Put", "Call"],
+            index=0,
+            help="Type of option contract",
+            key="portfolio_option_type"
+        )
+            
             option_expiry = st.selectbox(
                 "Option Maturity:",
                 options=[1, 3, 6, 12],
@@ -529,6 +537,7 @@ def portfolio_builder_sidebar():
         if submitted and position_name:
             if position_name not in st.session_state.portfolio_manager.positions:
                 final_strike_price = strike_price
+                final_option_type = option_type if strategy == "Options" else None
                 if strategy == "Options" and commodity != "WTI Crude Oil":
                     try:
                         commodity_price = get_current_price(commodity)
@@ -541,7 +550,8 @@ def portfolio_builder_sidebar():
                     size=position_size,
                     hedge_ratio=hedge_ratio/100.0,  # Convert percentage to decimal
                     strategy=strategy,
-                    strike_price=final_strike_price
+                    strike_price=final_strike_price,
+                    option_type=final_option_type
                 )
                 
                 st.session_state.portfolio_manager.add_position(position_name, new_position)
