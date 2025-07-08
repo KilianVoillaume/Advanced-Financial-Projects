@@ -56,6 +56,7 @@ st.markdown("""
         background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%);
         padding: 2rem; border-radius: 20px; margin: 3rem auto 3rem auto; max-width: 1000px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center; justify-content: center; align-items: center;
+        height: 200px; display: flex; flex-direction: column;
     }
     
     .mode-title {
