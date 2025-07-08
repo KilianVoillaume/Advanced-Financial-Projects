@@ -813,7 +813,7 @@ def portfolio_overview_tab(portfolio, analysis_ready):
         summary_df = portfolio.get_portfolio_summary()
         if not summary_df.empty:
             st.markdown("**📋 Position Details:**")
-            display_df = summary_df[['Position Name', 'Commodity', 'Direction', 'Option type', 'Weight', 'Hedge Ratio']].copy()
+            display_df = summary_df[['Position Name', 'Commodity', 'Direction', 'Weight', 'Hedge Ratio']].copy()
             st.dataframe(
                 display_df, 
                 use_container_width=True, 
