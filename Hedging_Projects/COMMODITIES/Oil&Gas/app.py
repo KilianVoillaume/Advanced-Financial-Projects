@@ -418,7 +418,8 @@ def portfolio_builder_sidebar():
     
     strike_price = None
     option_expiry = None
-    
+    option_type = None
+
     if strategy == "Options":
         st.markdown("**⚙️ Options Parameters:**")
         
@@ -554,6 +555,12 @@ def portfolio_builder_sidebar():
                     option_type=final_option_type
                 )
                 
+                # TO DEBUG, TO DELETE AFTER EVEYTHING IS CLEAN -------------------------------------------------------------------------
+                st.write(f"DEBUG: strategy = {strategy}")
+                st.write(f"DEBUG: option_type = {option_type}")
+                st.write(f"DEBUG: final_option_type = {final_option_type}")
+                st.write(f"DEBUG: position_size = {position_size}")
+
                 st.session_state.portfolio_manager.add_position(position_name, new_position)
                 st.success(f"✅ Added {position_name} to portfolio!")
                 st.rerun()
