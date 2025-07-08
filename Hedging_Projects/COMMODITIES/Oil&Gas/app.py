@@ -462,8 +462,6 @@ def portfolio_builder_sidebar():
     
     # Process form submission
     if submitted and position_name:
-    # Process form submission
-    if submitted and position_name:
         if position_name not in st.session_state.portfolio_manager.positions:
             new_position = Position(
                 commodity=commodity,
