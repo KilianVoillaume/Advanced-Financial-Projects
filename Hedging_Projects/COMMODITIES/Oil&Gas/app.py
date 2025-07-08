@@ -53,9 +53,9 @@ st.markdown("""
     .hero-subtitle { font-size: 1.3rem; font-weight: 300; opacity: 0.95; }
     
     .mode-container {
-        background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%);
-        padding: 2rem; border-radius: 20px; margin: 2rem auto; max-width: 1000px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center;
+        background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%); border-radius: 20px; margin: 3rem auto; max-width: 1000px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center; display: flex; justify-content: center;
+        align-items: center; padding: 2rem;
     }
     
     .mode-title {
@@ -66,6 +66,8 @@ st.markdown("""
     .stRadio > div { 
         display: flex; justify-content: center; gap: 3rem; 
         flex-wrap: wrap; align-items: center;
+        margin: 0 auto;
+        max-width: 800px;
     }
     
     .stRadio > div > label {
@@ -242,7 +244,7 @@ def main():
     """, unsafe_allow_html=True)
     
     # Centered mode selection with better styling
-    col1, col2, col3 = st.columns([1, 3, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     
     with col2:
         mode_option = st.radio(
@@ -270,7 +272,8 @@ def main():
         """, unsafe_allow_html=True)
     
     st.markdown("---")
-    
+    st.markdown("<br>", unsafe_allow_html=True)
+
     if st.session_state.portfolio_mode:
         portfolio_interface()
     else:
@@ -279,11 +282,6 @@ def main():
 
 def portfolio_interface():
     """Portfolio management interface."""
-    st.markdown("""
-    <div class="success-banner fade-in">
-        ✨ <strong>Portfolio Mode Active</strong> - Advanced multi-commodity risk management platform
-    </div>
-    """, unsafe_allow_html=True)
     
     col1, col2 = st.columns([1, 2])
     
@@ -385,15 +383,13 @@ def portfolio_builder_sidebar():
         hedge_ratio = st.slider(
             "Hedge Ratio:",
             min_value=0.0,
-            max_value=1.0,
-            value=0.8,
+            max_value=100.0,
+            value=80.0,
             step=0.05,
-            format="%.0f%%",
-            help="Percentage of position to hedge",
-            key="portfolio_hedge_ratio"
+            format="%.2f%%",
+            help="Percentage of position to hedge"
         ) 
-        
-        st.caption(f"Hedging {hedge_ratio*100:.0f}% of the position")
+        st.caption(f"Hedging {hedge_ratio:.2f}% of the position")
         
         strategy = st.selectbox(
             "Strategy:",
@@ -401,81 +397,79 @@ def portfolio_builder_sidebar():
             help="Hedging instrument"
         )
         
-        submitted = st.form_submit_button("🔥 Add Position", type="primary", use_container_width=True)
-    
-    # Options parameters OUTSIDE the form for dynamic visibility
-    strike_price = None
-    option_expiry = None
-    
-    if strategy == "Options":
-        st.markdown("**⚙️ Options Parameters:**")
+        strike_price = None
+        option_expiry = None
         
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            try:
-                current_price = get_current_price(commodity)
-                strike_price = st.slider(
-                    "Strike Price ($):",
-                    min_value=float(current_price * 0.7),
-                    max_value=float(current_price * 1.3),
-                    value=float(current_price),
-                    step=0.5,
-                    help="Option strike price",
-                    key="portfolio_strike_price"
+        if strategy == "Options":
+            st.markdown("**⚙️ Options Parameters:**")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                try:
+                    current_price = get_current_price(commodity)
+                    strike_price = st.slider(
+                        "Strike Price ($):",
+                        min_value=float(current_price * 0.7),
+                        max_value=float(current_price * 1.3),
+                        value=float(current_price),
+                        step=0.5,
+                        help="Option strike price",
+                        key="portfolio_strike_price"
+                    )
+                    
+                    moneyness = current_price / strike_price
+                    if abs(moneyness - 1.0) < 0.05:
+                        st.caption("🎯 At-the-Money (ATM)")
+                    elif moneyness > 1.05:
+                        st.caption("📉 Out-of-the-Money (OTM)")
+                    else:
+                        st.caption("📈 In-the-Money (ITM)")
+                        
+                except Exception as e:
+                    st.warning(f"Could not fetch current price: {e}")
+                    strike_price = st.number_input(
+                        "Strike Price ($):", 
+                        value=75.0, 
+                        min_value=1.0, 
+                        max_value=200.0,
+                        step=0.5,
+                        key="portfolio_strike_fallback"
+                    )
+            
+            with col2:
+                option_expiry = st.selectbox(
+                    "Option Maturity:",
+                    options=[1, 3, 6, 12],
+                    index=1,
+                    format_func=lambda x: f"{x} month{'s' if x > 1 else ''}",
+                    help="Time until option expiration",
+                    key="portfolio_option_expiry"
                 )
                 
-                moneyness = current_price / strike_price
-                if abs(moneyness - 1.0) < 0.05:
-                    st.caption("🎯 At-the-Money (ATM)")
-                elif moneyness > 1.05:
-                    st.caption("📉 Out-of-the-Money (OTM)")
-                else:
-                    st.caption("📈 In-the-Money (ITM)")
-                    
-            except Exception as e:
-                st.warning(f"Could not fetch current price: {e}")
-                strike_price = st.number_input(
-                    "Strike Price ($):", 
-                    value=75.0, 
-                    min_value=1.0, 
-                    max_value=200.0,
-                    step=0.5,
-                    key="portfolio_strike_fallback"
+                # Show option type
+                option_type = "Put" if position_direction == "Long" else "Call"
+                st.caption(f"📊 Recommended: {option_type} Option")
+            
+            st.markdown("---")
+        
+        submitted = st.form_submit_button("🔥 Add Position", type="primary", use_container_width=True)
+        
+        if submitted and position_name:
+            if position_name not in st.session_state.portfolio_manager.positions:
+                new_position = Position(
+                    commodity=commodity,
+                    size=position_size,
+                    hedge_ratio=hedge_ratio,
+                    strategy=strategy,
+                    strike_price=strike_price
                 )
-        
-        with col2:
-            option_expiry = st.selectbox(
-                "Option Maturity:",
-                options=[1, 3, 6, 12],
-                index=1,
-                format_func=lambda x: f"{x} month{'s' if x > 1 else ''}",
-                help="Time until option expiration",
-                key="portfolio_option_expiry"
-            )
-            
-            # Show option type
-            option_type = "Put" if position_direction == "Long" else "Call"
-            st.caption(f"📊 Recommended: {option_type} Option")
-        
-        st.markdown("---")
-    
-    # Process form submission
-    if submitted and position_name:
-        if position_name not in st.session_state.portfolio_manager.positions:
-            new_position = Position(
-                commodity=commodity,
-                size=position_size,
-                hedge_ratio=hedge_ratio_decimal,  # Use decimal version
-                strategy=strategy,
-                strike_price=strike_price
-            )
-            
-            st.session_state.portfolio_manager.add_position(position_name, new_position)
-            st.success(f"✅ Added {position_name} to portfolio!")
-            st.rerun()
-        else:
-            st.error(f"❌ Position '{position_name}' already exists!")
+                
+                st.session_state.portfolio_manager.add_position(position_name, new_position)
+                st.success(f"✅ Added {position_name} to portfolio!")
+                st.rerun()
+            else:
+                st.error(f"❌ Position '{position_name}' already exists!")
     
     st.markdown('</div>', unsafe_allow_html=True)
     
