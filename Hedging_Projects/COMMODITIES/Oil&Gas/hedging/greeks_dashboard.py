@@ -51,7 +51,7 @@ class GreeksDashboard:
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
             )
             
-            position_multiplier = abs(position.size) * position.hedge_ratio
+            position_multiplier = position.size * position.hedge_ratio
             
             return {
                 'delta': greeks['delta'] * position_multiplier,
