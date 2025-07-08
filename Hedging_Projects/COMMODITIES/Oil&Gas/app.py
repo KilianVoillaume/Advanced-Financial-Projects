@@ -237,12 +237,6 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("""
-    <div class="mode-container">
-        <div class="mode-title">Choose Your Analysis Mode</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
     # Centered mode selection with better styling
     col1, col2, col3 = st.columns([1, 1, 1])
     
