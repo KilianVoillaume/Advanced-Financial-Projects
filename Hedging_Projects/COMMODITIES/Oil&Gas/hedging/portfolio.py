@@ -20,17 +20,7 @@ from .risk import calculate_risk_metrics
 
 @dataclass(frozen=True)
 class Position:
-    """
-    Immutable position data structure.
-    
-    Args:
-        commodity: Commodity name (e.g., "WTI Crude Oil", "Natural Gas")
-        size: Position size (positive=long, negative=short)
-        hedge_ratio: Hedge ratio between 0.0 and 1.0
-        strategy: Hedging strategy ("Futures" or "Options")
-        strike_price: Strike price for options (None for futures)
-        current_price: Current commodity price (auto-fetched if None)
-    """
+    """ Immutable position data structure. """
     commodity: str
     size: float
     hedge_ratio: float
@@ -39,14 +29,11 @@ class Position:
     current_price: Optional[float] = None
     
     def __post_init__(self):
-        # Auto-fetch current price if not provided
         if self.current_price is None:
             try:
                 price = get_current_price(self.commodity)
-                # Use object.__setattr__ because dataclass is frozen
                 object.__setattr__(self, 'current_price', price)
             except Exception:
-                # Fallback prices if data fetch fails
                 fallback_prices = {
                     "WTI Crude Oil": 75.0,
                     "Brent Crude Oil": 78.0,
@@ -82,6 +69,56 @@ class Position:
     def with_size(self, new_size: float) -> 'Position':
         """Create new position with different size."""
         return replace(self, size=new_size)
+
+    def get_position_greeks(self) -> Dict[str, float]:
+        """Calculate Greeks for this position."""
+        if self.strategy != "Options" or not self.strike_price:
+            return {
+                'delta': 0.0,
+                'gamma': 0.0,
+                'theta': 0.0,
+                'vega': 0.0,
+                'rho': 0.0
+            }
+        
+        try:
+            from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
+            
+            # Parameters for Greeks calculation
+            current_price = self.current_price
+            strike = self.strike_price
+            time_to_exp = time_to_expiration(3)  # 3 months default
+            risk_free_rate = get_risk_free_rate()
+            volatility = get_commodity_volatility(self.commodity)
+            
+            # Determine option type
+            option_type = 'put' if self.size > 0 else 'call'
+            
+            # Calculate Greeks
+            greeks = BlackScholesCalculator.calculate_greeks(
+                current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
+            )
+            
+            # Scale by position size and hedge ratio
+            multiplier = abs(self.size) * self.hedge_ratio
+            
+            return {
+                'delta': greeks['delta'] * multiplier,
+                'gamma': greeks['gamma'] * multiplier,
+                'theta': greeks['theta'] * multiplier,
+                'vega': greeks['vega'] * multiplier,
+                'rho': greeks['rho'] * multiplier
+            }
+            
+        except Exception as e:
+            print(f"Error calculating Greeks: {e}")
+            return {
+                'delta': 0.0,
+                'gamma': 0.0,
+                'theta': 0.0,
+                'vega': 0.0,
+                'rho': 0.0
+            }
 
 
 @dataclass
