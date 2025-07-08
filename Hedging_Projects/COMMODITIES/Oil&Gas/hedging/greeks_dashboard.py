@@ -17,43 +17,48 @@ warnings.filterwarnings('ignore')
 
 # Import our options math module
 from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
-from hedging.portfolio import PositionType
 
 
 class GreeksDashboard:
-    """Updated Greeks dashboard with backward compatibility."""
+    """
+    Real-time Greeks dashboard for options positions.
+    
+    Provides comprehensive visualization and monitoring of portfolio Greeks
+    with professional-grade charts and risk metrics.
+    """
     
     @staticmethod
     def _calculate_position_greeks(position) -> Dict[str, float]:
-        """
-        SAFE: Calculate Greeks with backward compatibility.
-        """
+        """Calculate Greeks for a single position."""
         try:
-            # Try new method first
-            if hasattr(position, 'get_position_greeks'):
-                return position.get_position_greeks()
-            
-            # Fallback to original logic for old positions
             if position.strategy != "Options" or not position.strike_price:
                 return {
-                    'delta': 0.0, 'gamma': 0.0, 'theta': 0.0, 'vega': 0.0, 'rho': 0.0
+                    'delta': 0.0,
+                    'gamma': 0.0,
+                    'theta': 0.0,
+                    'vega': 0.0,
+                    'rho': 0.0
                 }
             
-            from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
-            
+            # Get current market data
             current_price = position.current_price
             strike = position.strike_price
-            time_to_exp = time_to_expiration(3)
+            time_to_exp = time_to_expiration(3)  # Default 3 months
             risk_free_rate = get_risk_free_rate()
             volatility = get_commodity_volatility(position.commodity)
             
-            # Original (flawed) logic as fallback
-            option_type = 'put' if position.size > 0 else 'call'
+            # Determine option type based on position
+            if position.size > 0:  # Long underlying -> need put protection
+                option_type = 'put'
+            else:  # Short underlying -> need call protection
+                option_type = 'call'
             
+            # Calculate Greeks
             greeks = BlackScholesCalculator.calculate_greeks(
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
             )
             
+            # Scale by position size and hedge ratio
             position_multiplier = abs(position.size) * position.hedge_ratio
             
             return {
@@ -65,13 +70,109 @@ class GreeksDashboard:
             }
             
         except Exception as e:
+            st.error(f"Error calculating Greeks for position: {e}")
             return {
-                'delta': 0.0, 'gamma': 0.0, 'theta': 0.0, 'vega': 0.0, 'rho': 0.0
+                'delta': 0.0,
+                'gamma': 0.0,
+                'theta': 0.0,
+                'vega': 0.0,
+                'rho': 0.0
             }
     
     @staticmethod
+    def create_greeks_heatmap(portfolio_positions: Dict) -> go.Figure:
+        """Create heatmap of Greeks across all positions."""
+        
+        if not portfolio_positions:
+            # Create empty heatmap
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No options positions to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(
+                title="Portfolio Greeks Heatmap",
+                xaxis=dict(showgrid=False, showticklabels=False),
+                yaxis=dict(showgrid=False, showticklabels=False),
+                height=400
+            )
+            return fig
+        
+        # Calculate Greeks for each position
+        greeks_data = []
+        position_names = []
+        
+        for name, position in portfolio_positions.items():
+            if position.strategy == "Options":
+                greeks = GreeksDashboard._calculate_position_greeks(position)
+                greeks_data.append([
+                    greeks['delta'],
+                    greeks['gamma'],
+                    greeks['theta'],
+                    greeks['vega'],
+                    greeks['rho']
+                ])
+                position_names.append(name)
+        
+        if not greeks_data:
+            # No options positions
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No options positions found",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(
+                title="Portfolio Greeks Heatmap",
+                height=400
+            )
+            return fig
+        
+        # Create heatmap
+        greeks_names = ['Delta', 'Gamma', 'Theta', 'Vega', 'Rho']
+        greeks_array = np.array(greeks_data)
+        
+        # Normalize for better visualization
+        normalized_data = np.zeros_like(greeks_array)
+        for i in range(greeks_array.shape[1]):
+            col = greeks_array[:, i]
+            if np.std(col) > 0:
+                normalized_data[:, i] = (col - np.mean(col)) / np.std(col)
+        
+        fig = go.Figure(data=go.Heatmap(
+            z=normalized_data,
+            x=greeks_names,
+            y=position_names,
+            colorscale='RdBu',
+            zmid=0,
+            text=greeks_array,
+            texttemplate='%{text:.3f}',
+            textfont={"size": 12, "color": "white"},
+            hoverongaps=False,
+            colorbar=dict(title="Normalized Greeks")
+        ))
+        
+        fig.update_layout(
+            title={
+                'text': "Portfolio Greeks Heatmap",
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 20, 'family': 'Inter'}
+            },
+            xaxis_title="Greeks",
+            yaxis_title="Positions",
+            height=400,
+            font=dict(family="Inter", size=12)
+        )
+        
+        return fig
+    
+    @staticmethod
     def create_delta_exposure_chart(portfolio_positions: Dict) -> go.Figure:
-        """SAFE: Create delta exposure visualization with backward compatibility."""
+        """Create delta exposure visualization."""
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -92,7 +193,7 @@ class GreeksDashboard:
         for name, position in portfolio_positions.items():
             if position.strategy == "Options":
                 greeks = GreeksDashboard._calculate_position_greeks(position)
-                delta = greeks.get('delta', 0.0)
+                delta = greeks['delta']
                 
                 # Aggregate by commodity
                 commodity = position.commodity
@@ -176,7 +277,7 @@ class GreeksDashboard:
     
     @staticmethod
     def create_gamma_risk_chart(portfolio_positions: Dict) -> go.Figure:
-        """SAFE: Create gamma risk visualization with backward compatibility."""
+        """Create gamma risk (convexity) visualization."""
         
         if not portfolio_positions:
             fig = go.Figure()
@@ -191,22 +292,19 @@ class GreeksDashboard:
         
         # Calculate gamma for each position
         gamma_data = []
+        position_names = []
         
         for name, position in portfolio_positions.items():
             if position.strategy == "Options":
                 greeks = GreeksDashboard._calculate_position_greeks(position)
-                gamma = greeks.get('gamma', 0.0)
-                
-                # SAFE: Get size with fallback
-                size = getattr(position, 'abs_size', abs(position.size)) if hasattr(position, 'size') else 1000
-                hedge_ratio = getattr(position, 'hedge_ratio', 0.0)
+                gamma = greeks['gamma']
                 
                 gamma_data.append({
                     'position': name,
                     'gamma': gamma,
                     'commodity': position.commodity,
-                    'size': size,
-                    'hedge_ratio': hedge_ratio
+                    'size': abs(position.size),
+                    'hedge_ratio': position.hedge_ratio
                 })
         
         if not gamma_data:
@@ -238,7 +336,7 @@ class GreeksDashboard:
                 mode='markers',
                 name=commodity,
                 marker=dict(
-                    size=commodity_data['size'] / 50,
+                    size=commodity_data['size'] / 50,  # Scale bubble size
                     color=colors[i % len(colors)],
                     opacity=0.7,
                     line=dict(width=2, color='white')
@@ -270,13 +368,203 @@ class GreeksDashboard:
         return fig
     
     @staticmethod
+    def create_theta_decay_chart(portfolio_positions: Dict) -> go.Figure:
+        """Create time decay (theta) visualization."""
+        
+        if not portfolio_positions:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No positions to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Theta Decay", height=350)
+            return fig
+        
+        # Calculate theta decay over time
+        theta_data = []
+        position_names = []
+        
+        for name, position in portfolio_positions.items():
+            if position.strategy == "Options":
+                greeks = GreeksDashboard._calculate_position_greeks(position)
+                theta = greeks['theta']
+                
+                theta_data.append(theta)
+                position_names.append(name)
+        
+        if not theta_data:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No options positions found",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Theta Decay", height=350)
+            return fig
+        
+        # Create theta decay chart
+        fig = go.Figure()
+        
+        # Calculate cumulative theta decay over 30 days
+        days = np.arange(0, 31)
+        cumulative_theta = np.zeros(len(days))
+        
+        for i, day in enumerate(days):
+            cumulative_theta[i] = np.sum(theta_data) * day
+        
+        fig.add_trace(go.Scatter(
+            x=days,
+            y=cumulative_theta,
+            mode='lines+markers',
+            name='Cumulative Theta Decay',
+            line=dict(color='#FF6B6B', width=3),
+            marker=dict(size=6, color='#FF6B6B'),
+            fill='tonexty',
+            fillcolor='rgba(255, 107, 107, 0.1)'
+        ))
+        
+        # Add daily theta line
+        daily_theta = [np.sum(theta_data)] * len(days)
+        fig.add_trace(go.Scatter(
+            x=days,
+            y=daily_theta,
+            mode='lines',
+            name='Daily Theta',
+            line=dict(color='#667eea', width=2, dash='dash'),
+            yaxis='y2'
+        ))
+        
+        fig.update_layout(
+            title={
+                'text': "Theta Decay Analysis",
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 18, 'family': 'Inter'}
+            },
+            xaxis_title="Days",
+            yaxis_title="Cumulative P&L Impact ($)",
+            height=350,
+            font=dict(family="Inter", size=12),
+            yaxis2=dict(
+                title="Daily Theta ($)",
+                overlaying='y',
+                side='right',
+                showgrid=False
+            )
+        )
+        
+        return fig
+    
+    @staticmethod
+    def create_vega_sensitivity_chart(portfolio_positions: Dict) -> go.Figure:
+        """Create volatility sensitivity (vega) visualization."""
+        
+        if not portfolio_positions:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No positions to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Vega Sensitivity", height=350)
+            return fig
+        
+        # Calculate vega sensitivity
+        vega_data = []
+        position_names = []
+        
+        for name, position in portfolio_positions.items():
+            if position.strategy == "Options":
+                greeks = GreeksDashboard._calculate_position_greeks(position)
+                vega = greeks['vega']
+                
+                vega_data.append({
+                    'position': name,
+                    'vega': vega,
+                    'commodity': position.commodity
+                })
+        
+        if not vega_data:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No options positions found",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Vega Sensitivity", height=350)
+            return fig
+        
+        # Create vega sensitivity chart
+        df = pd.DataFrame(vega_data)
+        
+        # Create volatility shock scenarios
+        vol_shocks = np.arange(-10, 11, 1)  # -10% to +10% vol shocks
+        
+        fig = go.Figure()
+        
+        # Plot each position's vega sensitivity
+        colors = ['#4ECDC4', '#FF6B6B', '#48bb78', '#667eea', '#f39c12']
+        
+        for i, (_, row) in enumerate(df.iterrows()):
+            pnl_impact = row['vega'] * vol_shocks
+            
+            fig.add_trace(go.Scatter(
+                x=vol_shocks,
+                y=pnl_impact,
+                mode='lines+markers',
+                name=row['position'],
+                line=dict(color=colors[i % len(colors)], width=2),
+                marker=dict(size=5)
+            ))
+        
+        # Add net portfolio vega
+        total_vega = df['vega'].sum()
+        net_pnl_impact = total_vega * vol_shocks
+        
+        fig.add_trace(go.Scatter(
+            x=vol_shocks,
+            y=net_pnl_impact,
+            mode='lines+markers',
+            name='Net Portfolio',
+            line=dict(color='black', width=3, dash='dash'),
+            marker=dict(size=8, symbol='diamond')
+        ))
+        
+        fig.update_layout(
+            title={
+                'text': "Vega Sensitivity Analysis",
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 18, 'family': 'Inter'}
+            },
+            xaxis_title="Volatility Shock (%)",
+            yaxis_title="P&L Impact ($)",
+            height=350,
+            font=dict(family="Inter", size=12),
+            hovermode='x unified'
+        )
+        
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+        fig.add_vline(x=0, line_dash="dash", line_color="gray", opacity=0.5)
+        
+        return fig
+    
     @staticmethod
     def render_greeks_summary_cards(portfolio_positions: Dict):
-        """SAFE: Render summary cards with backward compatibility."""
+        """Render summary cards for portfolio Greeks."""
         
         # Calculate net portfolio Greeks
         net_greeks = {
-            'delta': 0.0, 'gamma': 0.0, 'theta': 0.0, 'vega': 0.0, 'rho': 0.0
+            'delta': 0.0,
+            'gamma': 0.0,
+            'theta': 0.0,
+            'vega': 0.0,
+            'rho': 0.0
         }
         
         options_count = 0
