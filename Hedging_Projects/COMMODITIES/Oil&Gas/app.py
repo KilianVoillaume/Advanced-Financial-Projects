@@ -54,7 +54,7 @@ st.markdown("""
     
     .mode-container {
         background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%);
-        padding: 2rem; border-radius: 20px; margin: 2rem auto; max-width: 1000px;
+        padding: 2rem; border-radius: 20px; margin: 3rem auto 3rem auto; max-width: 1000px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center;
     }
     
@@ -66,6 +66,8 @@ st.markdown("""
     .stRadio > div { 
         display: flex; justify-content: center; gap: 3rem; 
         flex-wrap: wrap; align-items: center;
+        margin: 0 auto;
+        max-width: 800px;
     }
     
     .stRadio > div > label {
@@ -242,7 +244,7 @@ def main():
     """, unsafe_allow_html=True)
     
     # Centered mode selection with better styling
-    col1, col2, col3 = st.columns([1, 3, 1])
+    col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         mode_option = st.radio(
@@ -270,6 +272,7 @@ def main():
         """, unsafe_allow_html=True)
     
     st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
     
     if st.session_state.portfolio_mode:
         portfolio_interface()
