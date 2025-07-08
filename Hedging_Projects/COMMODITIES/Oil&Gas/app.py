@@ -530,7 +530,6 @@ def portfolio_builder_sidebar():
         st.info(f"🛡️ Strategy: {strategy} | Hedge Ratio: {hedge_ratio:.1f}%")
         
         if strategy == "Options" and strike_price:
-            option_type = "Put" if position_direction == "Long" else "Call"
             st.info(f"📈 {option_type} Option | Strike: ${strike_price:.2f} | Maturity: {option_expiry} months")
         
         submitted = st.form_submit_button("🔥 Add Position", type="primary", use_container_width=True)
