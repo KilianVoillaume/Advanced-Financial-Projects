@@ -698,13 +698,7 @@ def correlations_tab(portfolio, analysis_ready):
         text=corr_matrix.round(3).values,
         texttemplate="%{text}",
         textfont={"size": 14, "color": "white"},
-        colorbar=dict(
-            title="Correlation",
-            titleside="right",
-            tickmode="linear",
-            tick0=-1,
-            dtick=0.5
-        )
+        colorbar=dict(title="Correlation")
     ))
     
     fig_heatmap.update_layout(
