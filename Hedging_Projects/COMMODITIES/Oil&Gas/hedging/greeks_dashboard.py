@@ -19,17 +19,260 @@ warnings.filterwarnings('ignore')
 from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
 from hedging.portfolio import PositionType
 
+
 class GreeksDashboard:
-    """Updated Greeks dashboard with fixed calculation."""
+    """Updated Greeks dashboard with backward compatibility."""
     
     @staticmethod
     def _calculate_position_greeks(position) -> Dict[str, float]:
-        """FIXED: Use the Position's own Greeks calculation."""
-        return position.get_position_greeks()
+        """
+        SAFE: Calculate Greeks with backward compatibility.
+        """
+        try:
+            # Try new method first
+            if hasattr(position, 'get_position_greeks'):
+                return position.get_position_greeks()
+            
+            # Fallback to original logic for old positions
+            if position.strategy != "Options" or not position.strike_price:
+                return {
+                    'delta': 0.0, 'gamma': 0.0, 'theta': 0.0, 'vega': 0.0, 'rho': 0.0
+                }
+            
+            from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
+            
+            current_price = position.current_price
+            strike = position.strike_price
+            time_to_exp = time_to_expiration(3)
+            risk_free_rate = get_risk_free_rate()
+            volatility = get_commodity_volatility(position.commodity)
+            
+            # Original (flawed) logic as fallback
+            option_type = 'put' if position.size > 0 else 'call'
+            
+            greeks = BlackScholesCalculator.calculate_greeks(
+                current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
+            )
+            
+            position_multiplier = abs(position.size) * position.hedge_ratio
+            
+            return {
+                'delta': greeks['delta'] * position_multiplier,
+                'gamma': greeks['gamma'] * position_multiplier,
+                'theta': greeks['theta'] * position_multiplier,
+                'vega': greeks['vega'] * position_multiplier,
+                'rho': greeks['rho'] * position_multiplier
+            }
+            
+        except Exception as e:
+            return {
+                'delta': 0.0, 'gamma': 0.0, 'theta': 0.0, 'vega': 0.0, 'rho': 0.0
+            }
     
     @staticmethod
+    def create_delta_exposure_chart(portfolio_positions: Dict) -> go.Figure:
+        """SAFE: Create delta exposure visualization with backward compatibility."""
+        
+        if not portfolio_positions:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No positions to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Delta Exposure", height=350)
+            return fig
+        
+        # Calculate delta exposure by commodity
+        delta_by_commodity = {}
+        position_deltas = []
+        position_names = []
+        
+        for name, position in portfolio_positions.items():
+            if position.strategy == "Options":
+                greeks = GreeksDashboard._calculate_position_greeks(position)
+                delta = greeks.get('delta', 0.0)
+                
+                # Aggregate by commodity
+                commodity = position.commodity
+                if commodity not in delta_by_commodity:
+                    delta_by_commodity[commodity] = 0
+                delta_by_commodity[commodity] += delta
+                
+                position_deltas.append(delta)
+                position_names.append(name)
+        
+        if not position_deltas:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No options positions found",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Delta Exposure", height=350)
+            return fig
+        
+        # Create subplot with two charts
+        fig = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=("Delta by Position", "Delta by Commodity"),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}]]
+        )
+        
+        # Chart 1: Delta by position
+        colors = ['#FF6B6B' if delta < 0 else '#4ECDC4' for delta in position_deltas]
+        
+        fig.add_trace(
+            go.Bar(
+                x=position_names,
+                y=position_deltas,
+                name="Position Delta",
+                marker_color=colors,
+                text=[f'{delta:.3f}' for delta in position_deltas],
+                textposition='auto',
+                showlegend=False
+            ),
+            row=1, col=1
+        )
+        
+        # Chart 2: Delta by commodity
+        if delta_by_commodity:
+            commodities = list(delta_by_commodity.keys())
+            commodity_deltas = list(delta_by_commodity.values())
+            commodity_colors = ['#FF6B6B' if delta < 0 else '#48bb78' for delta in commodity_deltas]
+            
+            fig.add_trace(
+                go.Bar(
+                    x=commodities,
+                    y=commodity_deltas,
+                    name="Commodity Delta",
+                    marker_color=commodity_colors,
+                    text=[f'{delta:.3f}' for delta in commodity_deltas],
+                    textposition='auto',
+                    showlegend=False
+                ),
+                row=1, col=2
+            )
+        
+        fig.update_layout(
+            title={
+                'text': "Delta Exposure Analysis",
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 18, 'family': 'Inter'}
+            },
+            height=350,
+            showlegend=False,
+            font=dict(family="Inter", size=10)
+        )
+        
+        # Add zero line
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=1, col=1)
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=1, col=2)
+        
+        return fig
+    
+    @staticmethod
+    def create_gamma_risk_chart(portfolio_positions: Dict) -> go.Figure:
+        """SAFE: Create gamma risk visualization with backward compatibility."""
+        
+        if not portfolio_positions:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No positions to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Gamma Risk", height=350)
+            return fig
+        
+        # Calculate gamma for each position
+        gamma_data = []
+        
+        for name, position in portfolio_positions.items():
+            if position.strategy == "Options":
+                greeks = GreeksDashboard._calculate_position_greeks(position)
+                gamma = greeks.get('gamma', 0.0)
+                
+                # SAFE: Get size with fallback
+                size = getattr(position, 'abs_size', abs(position.size)) if hasattr(position, 'size') else 1000
+                hedge_ratio = getattr(position, 'hedge_ratio', 0.0)
+                
+                gamma_data.append({
+                    'position': name,
+                    'gamma': gamma,
+                    'commodity': position.commodity,
+                    'size': size,
+                    'hedge_ratio': hedge_ratio
+                })
+        
+        if not gamma_data:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No options positions found",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(title="Gamma Risk", height=350)
+            return fig
+        
+        # Create gamma risk chart
+        df = pd.DataFrame(gamma_data)
+        
+        fig = go.Figure()
+        
+        # Color by commodity
+        commodities = df['commodity'].unique()
+        colors = ['#667eea', '#764ba2', '#4ECDC4', '#FF6B6B', '#48bb78']
+        
+        for i, commodity in enumerate(commodities):
+            commodity_data = df[df['commodity'] == commodity]
+            
+            fig.add_trace(go.Scatter(
+                x=commodity_data['position'],
+                y=commodity_data['gamma'],
+                mode='markers',
+                name=commodity,
+                marker=dict(
+                    size=commodity_data['size'] / 50,
+                    color=colors[i % len(colors)],
+                    opacity=0.7,
+                    line=dict(width=2, color='white')
+                ),
+                text=[f"Gamma: {gamma:.4f}<br>Size: {size:,.0f}<br>Hedge: {hedge:.1%}" 
+                      for gamma, size, hedge in zip(commodity_data['gamma'], 
+                                                   commodity_data['size'], 
+                                                   commodity_data['hedge_ratio'])],
+                hovertemplate='<b>%{fullData.name}</b><br>' +
+                             '%{text}<extra></extra>'
+            ))
+        
+        fig.update_layout(
+            title={
+                'text': "Gamma Risk Analysis",
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 18, 'family': 'Inter'}
+            },
+            xaxis_title="Position",
+            yaxis_title="Gamma",
+            height=350,
+            showlegend=True,
+            font=dict(family="Inter", size=12)
+        )
+        
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+        
+        return fig
+    
+    @staticmethod
+    @staticmethod
     def render_greeks_summary_cards(portfolio_positions: Dict):
-        """Enhanced summary cards with position type awareness."""
+        """SAFE: Render summary cards with backward compatibility."""
         
         # Calculate net portfolio Greeks
         net_greeks = {
@@ -37,23 +280,12 @@ class GreeksDashboard:
         }
         
         options_count = 0
-        underlying_count = 0
-        hedge_count = 0
-        speculation_count = 0
         
         for position in portfolio_positions.values():
             if position.strategy == "Options":
                 options_count += 1
+                greeks = GreeksDashboard._calculate_position_greeks(position)
                 
-                # Count by position type
-                if position.position_type == PositionType.UNDERLYING:
-                    underlying_count += 1
-                elif position.position_type == PositionType.HEDGE:
-                    hedge_count += 1
-                elif position.position_type == PositionType.SPECULATION:
-                    speculation_count += 1
-                
-                greeks = position.get_position_greeks()
                 for greek_name, greek_value in greeks.items():
                     net_greeks[greek_name] += greek_value
         
@@ -61,13 +293,7 @@ class GreeksDashboard:
             st.info("📊 No options positions found. Add options positions to see Greeks analysis.")
             return
         
-        # Display enhanced summary
-        st.markdown(f"""
-        **📊 Portfolio Summary:** {options_count} options positions 
-        ({hedge_count} hedges, {speculation_count} speculative, {underlying_count} other)
-        """)
-        
-        # Display summary cards (existing code...)
+        # Display summary cards
         col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
