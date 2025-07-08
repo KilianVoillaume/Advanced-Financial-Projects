@@ -553,12 +553,6 @@ def portfolio_builder_sidebar():
                     strike_price=final_strike_price,
                     option_type=final_option_type
                 )
-                
-                # TO DEBUG, TO DELETE AFTER EVEYTHING IS CLEAN -------------------------------------------------------------------------
-                st.write(f"DEBUG: strategy = {strategy}")
-                st.write(f"DEBUG: option_type = {option_type}")
-                st.write(f"DEBUG: final_option_type = {final_option_type}")
-                st.write(f"DEBUG: position_size = {position_size}")
 
                 st.session_state.portfolio_manager.add_position(position_name, new_position)
                 st.success(f"✅ Added {position_name} to portfolio!")
@@ -674,7 +668,43 @@ def portfolio_dashboard():
     with tab3:
         risk_analysis_tab(portfolio, analysis_ready)
     with tab4: 
-        render_enhanced_greeks_tab(portfolio, analysis_ready)
+            if len(portfolio.positions) > 0:
+                st.markdown("### 🔍 Debug Information")
+        
+                debug_data = []
+                for name, position in portfolio.positions.items():
+                    if position.strategy == "Options":
+                        # Calculate individual Greeks
+                        individual_greeks = position.get_position_greeks()
+                
+                        debug_data.append({
+                            "Position": name,
+                            "Size": position.size,
+                            "Option Type": position.option_type,
+                            "Strike": position.strike_price,
+                            "Current Price": position.current_price,
+                            "Hedge Ratio": f"{position.hedge_ratio:.1%}",
+                            "Delta": f"{individual_greeks['delta']:.4f}",
+                            "Gamma": f"{individual_greeks['gamma']:.4f}",
+                            "Theta": f"{individual_greeks['theta']:.4f}",
+                            "Vega": f"{individual_greeks['vega']:.4f}"
+                        })
+        
+                if debug_data:
+                    debug_df = pd.DataFrame(debug_data)
+                    st.dataframe(debug_df, use_container_width=True)
+            
+                    # Calculate net Greeks manually
+                    total_delta = sum([pos.get_position_greeks()['delta'] for pos in portfolio.positions.values() if pos.strategy == "Options"])
+                    total_gamma = sum([pos.get_position_greeks()['gamma'] for pos in portfolio.positions.values() if pos.strategy == "Options"])
+            
+                    st.write(f"**Manual Net Calculation:**")
+                    st.write(f"- Total Portfolio Delta: {total_delta:.4f}")
+                    st.write(f"- Total Portfolio Gamma: {total_gamma:.4f}")
+        
+                st.markdown("---")
+            render_enhanced_greeks_tab(portfolio, analysis_ready)
+    
     with tab5:
         stress_testing_tab(portfolio, analysis_ready)
 
