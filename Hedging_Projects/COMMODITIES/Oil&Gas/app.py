@@ -208,6 +208,44 @@ st.markdown("""
         gap: 1rem;
         margin: 1rem 0;
     }
+
+    .greeks-alert-critical {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        color: white; padding: 1rem; border-radius: 10px; margin: 0.5rem 0;
+        font-weight: 600; box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+    }
+    
+    .greeks-alert-warning {
+        background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%);
+        color: white; padding: 1rem; border-radius: 10px; margin: 0.5rem 0;
+        font-weight: 600; box-shadow: 0 4px 15px rgba(254, 202, 87, 0.3);
+    }
+    
+    .greeks-alert-success {
+        background: linear-gradient(135deg, #48cae4 0%, #023047 100%);
+        color: white; padding: 1rem; border-radius: 10px; margin: 0.5rem 0;
+        font-weight: 600; box-shadow: 0 4px 15px rgba(72, 202, 228, 0.3);
+    }
+    
+    .greeks-metric-card {
+        background: white; padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1); text-align: center;
+        transition: all 0.3s ease; border-left: 4px solid var(--accent-color, #667eea);
+    }
+    
+    .greeks-metric-card:hover {
+        transform: translateY(-3px); box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+    }
+    
+    .greeks-value-positive { color: #48bb78; font-weight: 700; }
+    .greeks-value-negative { color: #ff6b6b; font-weight: 700; }
+    .greeks-value-neutral { color: #667eea; font-weight: 700; }
+    
+    .risk-gauge-container {
+        background: linear-gradient(135deg, #f8f9ff 0%, #e8f4fd 100%);
+        padding: 2rem; border-radius: 20px; margin: 1rem 0;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -272,6 +310,37 @@ def main():
         single_position_interface()
 
 
+def create_sample_options_portfolio():
+    """Create a sample portfolio with options positions for testing Greeks dashboard."""
+    portfolio = PortfolioManager()
+    
+    # Add some options positions
+    portfolio.add_position("oil_hedge", Position(
+        commodity="WTI Crude Oil",
+        size=1000,  # Long 1000 barrels
+        hedge_ratio=0.8,  # 80% hedged
+        strategy="Options",
+        strike_price=80.0
+    ))
+    
+    portfolio.add_position("gas_protection", Position(
+        commodity="Natural Gas",
+        size=-500,  # Short 500 MMBtu
+        hedge_ratio=0.6,  # 60% hedged
+        strategy="Options", 
+        strike_price=2.8
+    ))
+    
+    portfolio.add_position("brent_collar", Position(
+        commodity="Brent Crude Oil",
+        size=800,  # Long 800 barrels
+        hedge_ratio=0.9,  # 90% hedged
+        strategy="Options",
+        strike_price=82.0
+    ))
+    
+    return portfolio
+
 def portfolio_interface():
     """Portfolio management interface."""
     
@@ -321,8 +390,23 @@ def portfolio_builder_sidebar():
     
     with col1:
         if st.button("📝 Load Sample", type="secondary", use_container_width=True):
-            st.session_state.portfolio_manager = create_sample_portfolio()
-            st.success("✅ Sample portfolio loaded!")
+            if 'sample_choice' not in st.session_state:
+                st.session_state.sample_choice = "Basic Portfolio"
+            
+            sample_type = st.selectbox(
+                "Sample Type:",
+                ["Basic Portfolio", "Options Portfolio"],
+                key="sample_type_selector",
+                index=0 if st.session_state.get('sample_choice', 'Basic Portfolio') == "Basic Portfolio" else 1
+            )
+            
+            if sample_type == "Basic Portfolio":
+                st.session_state.portfolio_manager = create_sample_portfolio()
+            else:
+                st.session_state.portfolio_manager = create_sample_options_portfolio()
+            
+            st.session_state.sample_choice = sample_type
+            st.success(f"✅ {sample_type} loaded!")
             st.rerun()
     
     with col2:
