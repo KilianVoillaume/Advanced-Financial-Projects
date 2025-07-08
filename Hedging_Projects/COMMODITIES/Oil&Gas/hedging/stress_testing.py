@@ -7,7 +7,7 @@ Models major market crises and their impact on hedged vs unhedged positions.
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 
 
