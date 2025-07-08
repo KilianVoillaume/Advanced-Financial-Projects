@@ -24,10 +24,7 @@ class GreeksDashboard:
     
     @staticmethod
     def _calculate_position_greeks(position) -> Dict[str, float]:
-        """
-        FIXED: Calculate Greeks using the enhanced Position class.
-        This method now simply delegates to the Position's own method.
-        """
+        """FIXED: Use the Position's own Greeks calculation."""
         return position.get_position_greeks()
     
     @staticmethod
