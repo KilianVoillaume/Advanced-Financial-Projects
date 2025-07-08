@@ -100,7 +100,7 @@ class Position:
             )
             
             # Scale by position size and hedge ratio
-            multiplier = abs(self.size) * self.hedge_ratio
+            multiplier = self.size * self.hedge_ratio
             
             return {
                 'delta': greeks['delta'] * multiplier,
