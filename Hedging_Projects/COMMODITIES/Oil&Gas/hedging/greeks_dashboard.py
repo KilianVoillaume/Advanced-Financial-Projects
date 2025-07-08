@@ -1083,8 +1083,77 @@ def render_enhanced_greeks_tab(portfolio, analysis_ready):
     st.markdown("---")
     
     st.markdown("### ⚡ Real-Time Greeks Monitor")
-    GreeksDashboard.render_real_time_greeks_monitor(portfolio.positions)
+    if len(portfolio.positions) > 0:
+        net_greeks = {
+            'delta': 0.0,
+            'gamma': 0.0,
+            'theta': 0.0,
+            'vega': 0.0,
+            'rho': 0.0
+        }
+    
+        options_count = 0
+        for position in portfolio.positions.values():
+            if position.strategy == "Options":
+                options_count += 1
+                greeks = position.get_position_greeks()
+                for greek_name, greek_value in greeks.items():
+                    net_greeks[greek_name] += greek_value
+    
+        if options_count > 0:
+            col1, col2, col3, col4, col5 = st.columns(5)
+        
+            with col1:
+                delta_color = "#4ECDC4" if net_greeks['delta'] >= 0 else "#FF6B6B"
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-title" style="color: {delta_color};">Portfolio Delta</div>
+                    <div class="metric-value">{net_greeks['delta']:.3f}</div>
+                    <div class="metric-subtitle">Price Sensitivity</div>
+                </div>
+                """, unsafe_allow_html=True)
 
+            with col2:
+                gamma_color = "#48bb78" if net_greeks['gamma'] >= 0 else "#e74c3c"
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-title" style="color: {gamma_color};">Portfolio Gamma</div>
+                    <div class="metric-value">{net_greeks['gamma']:.4f}</div>
+                    <div class="metric-subtitle">Convexity</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col3:
+                theta_color = "#FF6B6B" if net_greeks['theta'] < 0 else "#48bb78"
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-title" style="color: {theta_color};">Portfolio Theta</div>
+                    <div class="metric-value">${net_greeks['theta']:.2f}</div>
+                    <div class="metric-subtitle">Daily Decay</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col4:
+                vega_color = "#667eea"
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-title" style="color: {vega_color};">Portfolio Vega</div>
+                    <div class="metric-value">${net_greeks['vega']:.2f}</div>
+                    <div class="metric-subtitle">Vol Sensitivity</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col5:
+                rho_color = "#8e44ad"
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-title" style="color: {rho_color};">Portfolio Rho</div>
+                    <div class="metric-value">${net_greeks['rho']:.2f}</div>
+                    <div class="metric-subtitle">Rate Sensitivity</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("📊 No options positions found. Add options positions to see Greeks analysis.")
 
 if __name__ == "__main__":
     print("=== Greeks Dashboard Module ===")
