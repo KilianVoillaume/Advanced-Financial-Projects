@@ -282,11 +282,6 @@ def main():
 
 def portfolio_interface():
     """Portfolio management interface."""
-    st.markdown("""
-    <div class="success-banner fade-in">
-        ✨ <strong>Portfolio Mode Active</strong> - Advanced multi-commodity risk management platform
-    </div>
-    """, unsafe_allow_html=True)
     
     col1, col2 = st.columns([1, 2])
     
