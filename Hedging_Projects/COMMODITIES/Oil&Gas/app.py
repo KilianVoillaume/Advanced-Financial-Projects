@@ -1,8 +1,8 @@
 """
 app.py
 
-Main Streamlit application for the Oil & Gas Hedging Simulator.
-Simulates and analyzes hedging strategies on oil & gas commodities.
+Complete Multi-Commodity Oil & Gas Hedging Simulator with Portfolio Management.
+Supports both single position analysis and multi-commodity portfolio management.
 """
 
 import streamlit as st
@@ -12,28 +12,39 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
+import warnings
+warnings.filterwarnings('ignore')
 
-# Import our custom modules with error handling
+# Import existing modules
 try:
-    from hedging.data import get_prices, get_current_price, get_available_commodities, validate_commodity
-    from hedging.strategies import compute_payoff_diagram, get_hedge_summary, compute_crack_spread_simulation
+    from hedging.data import get_prices, get_current_price, get_available_commodities
+    from hedging.strategies import compute_payoff_diagram, get_hedge_summary
     from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
     from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison
+    from hedging.stress_testing import STRESS_SCENARIOS
+    
+    # Import new portfolio functionality
+    from hedging.portfolio import (
+        PortfolioManager, Position, 
+        create_oil_position, create_gas_position, create_brent_position,
+        create_sample_portfolio
+    )
+    PORTFOLIO_ENABLED = True
 except ImportError as e:
-    st.error(f"Error importing hedging modules: {e}")
+    st.error(f"Error importing modules: {e}")
     st.info("Please ensure all hedging modules are properly installed.")
-    st.stop()
+    PORTFOLIO_ENABLED = False
 
 
 # Page configuration
 st.set_page_config(
-    page_title="Oil & Gas Hedging Simulator",
+    page_title="Multi-Commodity Hedging Simulator",
     page_icon="🛢️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# Enhanced CSS styling
 st.markdown("""
 <style>
     .main-header {
@@ -50,6 +61,21 @@ st.markdown("""
         margin-top: 2rem;
         margin-bottom: 1rem;
     }
+    .portfolio-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        color: white;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .position-card {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #1f4e79;
+        margin-bottom: 0.5rem;
+    }
     .metric-card {
         background-color: #f8f9fa;
         padding: 1rem;
@@ -63,45 +89,111 @@ st.markdown("""
         border-radius: 0.5rem;
         margin-bottom: 1rem;
     }
+    .success-banner {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .mode-toggle {
+        background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+
+def initialize_session_state():
+    """Initialize session state variables."""
+    if 'portfolio_mode' not in st.session_state:
+        st.session_state.portfolio_mode = False  # Start with single position
+    
+    if 'portfolio_manager' not in st.session_state:
+        st.session_state.portfolio_manager = PortfolioManager()
+    
+    if 'simulation_run' not in st.session_state:
+        st.session_state.simulation_run = False
+    
+    # Single position session state
+    if 'single_position_results' not in st.session_state:
+        st.session_state.single_position_results = None
 
 
 def main():
     """Main application function."""
     
-    # App header
-    st.markdown('<h1 class="main-header">🛢️ Oil & Gas Hedging Simulator</h1>', unsafe_allow_html=True)
-    st.markdown("**Simulate and analyze hedging strategies on oil & gas commodities**")
-    
     # Initialize session state
-    if 'simulation_run' not in st.session_state:
-        st.session_state.simulation_run = False
+    initialize_session_state()
+    
+    # App header with mode selection
+    st.markdown('<h1 class="main-header">🛢️ Oil & Gas Hedging Simulator</h1>', unsafe_allow_html=True)
+    
+    # Mode selection
+    if PORTFOLIO_ENABLED:
+        st.markdown('<div class="mode-toggle">', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            mode_option = st.radio(
+                "📊 **Choose Analysis Mode:**",
+                options=["🎯 Single Position", "📊 Portfolio Management"],
+                index=1 if st.session_state.portfolio_mode else 0,
+                horizontal=True,
+                help="Single Position: Analyze one commodity at a time\nPortfolio: Manage multiple commodities with advanced analytics"
+            )
+            
+            st.session_state.portfolio_mode = (mode_option == "📊 Portfolio Management")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Mode description
+        if st.session_state.portfolio_mode:
+            st.markdown("**📊 Portfolio Mode:** Multi-commodity portfolio analysis with correlation matrices, portfolio-level risk metrics, and advanced optimization")
+        else:
+            st.markdown("**🎯 Single Position Mode:** Traditional single commodity hedging analysis with detailed payoff diagrams and risk metrics")
+    
+    else:
+        st.error("⚠️ Portfolio functionality unavailable. Running in Single Position mode only.")
+        st.session_state.portfolio_mode = False
+    
+    st.markdown("---")
+    
+    # Route to appropriate interface
+    if st.session_state.portfolio_mode and PORTFOLIO_ENABLED:
+        portfolio_interface()
+    else:
+        single_position_interface()
+
+
+def single_position_interface():
+    """Complete single position analysis interface (your original functionality)."""
+    
+    st.markdown("## 🎯 Single Position Hedging Analysis")
     
     # Sidebar inputs
     with st.sidebar:
         st.markdown("## 📊 Simulation Parameters")
         
-        # Commodity selection - SIMPLE VERSION
+        # Commodity selection
         st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         st.markdown("### 🏭 Commodity Selection")
-
+        
         commodity = st.selectbox(
             "Select Commodity:",
-            options=[
-                "WTI Crude Oil",
-                "Brent Crude Oil", 
-                "Natural Gas"
-            ],
-            index=0,  # Default to WTI
+            options=["WTI Crude Oil", "Brent Crude Oil", "Natural Gas"],
+            index=0,
             help="Select the commodity for hedging analysis"
         )
-
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Position parameters
         st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         st.markdown("### 📈 Position Parameters")
+        
         position = st.number_input(
             "Position Size:",
             min_value=1.0,
@@ -126,9 +218,10 @@ def main():
         # Hedging strategy parameters
         st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         st.markdown("### 🛡️ Hedging Strategy")
+        
         strategy = st.selectbox(
             "Hedging Strategy:",
-            options=["Futures", "Options"],  # ← REMOVED "Crack Spread (3-2-1)"
+            options=["Futures", "Options"],
             index=0,
             help="Choose hedging instrument"
         )
@@ -144,7 +237,7 @@ def main():
         )
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Options-specific parameters (enhanced UI from update)
+        # Options-specific parameters
         strike_price = None
         option_expiry = None
         
@@ -155,7 +248,6 @@ def main():
             try:
                 current_price = get_current_price(commodity)
                 
-                # Strike price selection
                 strike_price = st.slider(
                     "Strike Price ($):",
                     min_value=float(current_price * 0.7),
@@ -176,7 +268,6 @@ def main():
                 
                 st.caption(f"Current Price: ${float(current_price):.2f} | Moneyness: {moneyness_desc}")
                 
-                # Option expiration
                 option_expiry = st.selectbox(
                     "Option Expiration:",
                     options=[1, 3, 6, 12],
@@ -187,7 +278,7 @@ def main():
                 
             except Exception as e:
                 st.error(f"Error getting current price: {e}")
-                strike_price = 75.0  # Default fallback
+                strike_price = 75.0
                 option_expiry = 3
             
             st.markdown('</div>', unsafe_allow_html=True)
@@ -195,6 +286,7 @@ def main():
         # Risk analysis parameters
         st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         st.markdown("### 📊 Risk Analysis")
+        
         confidence = st.slider(
             "Confidence Level:",
             min_value=90,
@@ -227,55 +319,56 @@ def main():
     
         with st.spinner("Loading price data and running simulation..."):
             try:
-                # Fetch data with error handling
+                # Fetch data
                 prices = get_prices(commodity)
                 current_price = float(get_current_price(commodity))
-            
+                
                 # Ensure strike_price is float for options
                 if strategy == "Options" and strike_price is not None:
                     strike_price = float(strike_price)
-            
-                # Standard commodity simulation (removed crack spread logic)
+                
+                # Run simulation
                 sim_results = simulate_hedged_vs_unhedged(
                     prices, position, hedge_ratio, strategy, strike_price, n_simulations
                 )
-                        
+                
                 # Calculate payoff diagram
                 payoff_data = compute_payoff_diagram(
                     float(current_price), position, hedge_ratio, strategy, 
                     float(strike_price) if strike_price is not None else None
                 )
-            
+                
                 # Calculate risk metrics
                 hedged_risk = calculate_risk_metrics(sim_results['hedged_pnl'], confidence)
                 unhedged_risk = calculate_risk_metrics(sim_results['unhedged_pnl'], confidence)
-            
+                
                 # Calculate delta exposure
                 delta_exposure = calculate_delta_exposure(
                     prices, position, hedge_ratio, strategy, 
                     float(strike_price) if strike_price is not None else None
                 )
-            
-            
+                
                 # Store results in session state
-                st.session_state.prices = prices
-                st.session_state.current_price = current_price
-                st.session_state.sim_results = sim_results
-                st.session_state.payoff_data = payoff_data
-                st.session_state.hedged_risk = hedged_risk
-                st.session_state.unhedged_risk = unhedged_risk
-                st.session_state.delta_exposure = delta_exposure
-                st.session_state.params = {
-                    'commodity': commodity,
-                    'position': position,
-                    'strategy': strategy,
-                    'hedge_ratio': hedge_ratio,
-                    'strike_price': strike_price,
-                    'confidence': confidence
+                st.session_state.single_position_results = {
+                    'prices': prices,
+                    'current_price': current_price,
+                    'sim_results': sim_results,
+                    'payoff_data': payoff_data,
+                    'hedged_risk': hedged_risk,
+                    'unhedged_risk': unhedged_risk,
+                    'delta_exposure': delta_exposure,
+                    'params': {
+                        'commodity': commodity,
+                        'position': position,
+                        'strategy': strategy,
+                        'hedge_ratio': hedge_ratio,
+                        'strike_price': strike_price,
+                        'confidence': confidence
+                    }
                 }
-
+                
                 st.success("✅ Simulation completed successfully!")
-            
+                
             except Exception as e:
                 st.error(f"❌ Error running simulation: {str(e)}")
                 st.error("**Debug Information:**")
@@ -285,26 +378,25 @@ def main():
                 st.error(f"- Hedge Ratio: {hedge_ratio}")
                 if strategy == "Options":
                     st.error(f"- Strike Price: {strike_price}")
-                st.error(f"- Error Type: {type(e).__name__}")
-            
-                # Show suggestion
+                
                 st.info("💡 **Suggestions:**")
                 st.info("- Try a different commodity (WTI usually works best)")
-                st.info("- Check your internet connection") 
+                st.info("- Check your internet connection")
                 st.info("- Try with a smaller position size")
                 st.info("- Switch to Futures strategy if Options is failing")
-            
+                
                 st.session_state.simulation_run = False
     
     # Display results if simulation has been run
-    if st.session_state.simulation_run and hasattr(st.session_state, 'prices'):
-        display_results()
+    if st.session_state.simulation_run and st.session_state.single_position_results:
+        display_single_position_results()
 
 
-def display_results():
-    """Display simulation results and charts."""
+def display_single_position_results():
+    """Display single position simulation results."""
     
-    params = st.session_state.params
+    results = st.session_state.single_position_results
+    params = results['params']
     
     # Summary metrics at the top
     st.markdown('<h2 class="section-header">📋 Simulation Summary</h2>', unsafe_allow_html=True)
@@ -321,7 +413,7 @@ def display_results():
     with col2:
         st.metric(
             "Current Price",
-            f"${st.session_state.current_price:.2f}",
+            f"${results['current_price']:.2f}",
             help="Most recent market price"
         )
     
@@ -342,33 +434,40 @@ def display_results():
         )
     
     # Create tabs for different views
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Price Chart", "📊 Payoff Diagram", "🎯 P&L Distribution", "📋 Risk Metrics", "⚠️ Stress Testing"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📈 Price Chart", 
+        "📊 Payoff Diagram", 
+        "🎯 P&L Distribution", 
+        "📋 Risk Metrics", 
+        "⚠️ Stress Testing"
+    ])
     
     with tab1:
-        display_price_chart()
+        display_price_chart(results)
     
     with tab2:
-        display_payoff_diagram()
+        display_payoff_diagram(results)
     
     with tab3:
-        display_pnl_distribution()
+        display_pnl_distribution(results)
     
     with tab4:
-        display_risk_metrics()
+        display_risk_metrics(results)
     
     with tab5:
-        display_stress_testing()
+        display_stress_testing(results)
 
 
-def display_price_chart():
+def display_price_chart(results):
     """Display historical price chart."""
     
     st.markdown('<h3 class="section-header">Historical Price Chart</h3>', unsafe_allow_html=True)
     
-    prices = st.session_state.prices
-    commodity = st.session_state.params['commodity']
+    prices = results['prices']
+    commodity = results['params']['commodity']
+    current_price = results['current_price']
     
-    # Create interactive price chart with Plotly
+    # Create interactive price chart
     fig = go.Figure()
     
     fig.add_trace(go.Scatter(
@@ -380,22 +479,21 @@ def display_price_chart():
     ))
     
     # Add current price line
-    current_price_val = float(st.session_state.current_price)
     fig.add_hline(
-        y=current_price_val,
+        y=current_price,
         line_dash="dash",
         line_color="red",
-        annotation_text=f"Current: ${current_price_val:.2f}"
+        annotation_text=f"Current: ${current_price:.2f}"
     )
     
     # Add strike price line for options
-    if st.session_state.params['strategy'] == 'Options' and st.session_state.params['strike_price']:
-        strike_price_val = float(st.session_state.params['strike_price'])
+    if results['params']['strategy'] == 'Options' and results['params']['strike_price']:
+        strike_price = results['params']['strike_price']
         fig.add_hline(
-            y=strike_price_val,
+            y=strike_price,
             line_dash="dot",
             line_color="green",
-            annotation_text=f"Strike: ${strike_price_val:.2f}"
+            annotation_text=f"Strike: ${strike_price:.2f}"
         )
     
     fig.update_layout(
@@ -428,14 +526,14 @@ def display_price_chart():
             st.metric("Annualized Volatility", "N/A")
 
 
-def display_payoff_diagram():
-    """Display payoff diagram (enhanced feature from update)."""
+def display_payoff_diagram(results):
+    """Display payoff diagram."""
     
     st.markdown('<h3 class="section-header">Payoff Diagram at Expiry</h3>', unsafe_allow_html=True)
     st.markdown("This diagram shows profit/loss for different price scenarios at expiration.")
     
-    payoff_data = st.session_state.payoff_data
-    current_price = st.session_state.current_price
+    payoff_data = results['payoff_data']
+    current_price = results['current_price']
     
     # Create payoff diagram
     fig = go.Figure()
@@ -458,7 +556,7 @@ def display_payoff_diagram():
         line=dict(color='blue', width=2, dash='dot')
     ))
     
-    # Add net P&L (most important)
+    # Add net P&L
     fig.add_trace(go.Scatter(
         x=payoff_data['spot_prices'],
         y=payoff_data['net_pnl'],
@@ -471,22 +569,20 @@ def display_payoff_diagram():
     fig.add_hline(y=0, line_dash="solid", line_color="black", line_width=1)
     
     # Add current price line
-    current_price_val = float(current_price)
     fig.add_vline(
-        x=current_price_val,
+        x=current_price,
         line_dash="dash",
         line_color="orange",
-        annotation_text=f"Current Price: ${current_price_val:.2f}"
+        annotation_text=f"Current Price: ${current_price:.2f}"
     )
     
     # Add breakeven points
-    for i, breakeven in enumerate(payoff_data['breakeven_prices']):
-        breakeven_val = float(breakeven)
+    for breakeven in payoff_data['breakeven_prices']:
         fig.add_vline(
-            x=breakeven_val,
+            x=breakeven,
             line_dash="dot",
             line_color="purple",
-            annotation_text=f"Breakeven: ${breakeven_val:.2f}"
+            annotation_text=f"Breakeven: ${breakeven:.2f}"
         )
     
     fig.update_layout(
@@ -494,8 +590,7 @@ def display_payoff_diagram():
         xaxis_title="Spot Price at Expiry ($)",
         yaxis_title="Profit & Loss ($)",
         height=500,
-        showlegend=True,
-        legend=dict(x=0.02, y=0.98)
+        showlegend=True
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -516,13 +611,13 @@ def display_payoff_diagram():
         st.metric("Breakeven Points", f"{num_breakevens}")
 
 
-def display_pnl_distribution():
+def display_pnl_distribution(results):
     """Display P&L distribution histogram."""
     
     st.markdown('<h3 class="section-header">P&L Distribution Analysis</h3>', unsafe_allow_html=True)
     st.markdown("Monte Carlo simulation results showing probability distribution of outcomes.")
     
-    sim_results = st.session_state.sim_results
+    sim_results = results['sim_results']
     
     # Create subplot with two histograms
     fig = make_subplots(
@@ -623,36 +718,32 @@ def display_pnl_distribution():
             "Sharpe Ratio Change",
             f"{float(effectiveness['sharpe_improvement']):.3f}",
             delta=f"Hedged: {float(effectiveness['hedged_sharpe']):.3f}",
-            help="Improvement in risk-adjusted returns (P&L/Volatility)"
+            help="Improvement in risk-adjusted returns"
         )
 
 
-def display_risk_metrics():
+def display_risk_metrics(results):
     """Display risk metrics table."""
     
     st.markdown('<h3 class="section-header">Risk Metrics Comparison</h3>', unsafe_allow_html=True)
     
-    hedged_risk = st.session_state.hedged_risk
-    unhedged_risk = st.session_state.unhedged_risk
-    confidence = st.session_state.params['confidence']
+    hedged_risk = results['hedged_risk']
+    unhedged_risk = results['unhedged_risk']
+    confidence = results['params']['confidence']
     
     # Create comparison table
     risk_comparison = summarize_risk_comparison(hedged_risk, unhedged_risk)
     
-    # Format the comparison table for better display
+    # Format the comparison table
     risk_comparison['Value_Unhedged'] = risk_comparison['Value_Unhedged'].apply(lambda x: f"${x:,.0f}")
     risk_comparison['Value_Hedged'] = risk_comparison['Value_Hedged'].apply(lambda x: f"${x:,.0f}")
     risk_comparison['Difference'] = risk_comparison['Difference'].apply(lambda x: f"${x:,.0f}")
     risk_comparison['Improvement'] = risk_comparison['Improvement'].apply(lambda x: f"{x:.1%}")
     
-    # Rename columns for display
+    # Rename columns
     risk_comparison.columns = ['Risk Metric', 'Unhedged', 'Hedged', 'Difference', 'Improvement']
     
-    st.dataframe(
-        risk_comparison,
-        hide_index=True,
-        use_container_width=True
-    )
+    st.dataframe(risk_comparison, hide_index=True, use_container_width=True)
     
     # Additional metrics
     st.markdown("#### Additional Risk Information")
@@ -660,120 +751,45 @@ def display_risk_metrics():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        delta_exp_val = float(st.session_state.delta_exposure)
+        delta_exp = float(results['delta_exposure'])
         st.metric(
             "Delta Exposure",
-            f"{delta_exp_val:,.0f}",
+            f"{delta_exp:,.0f}",
             help="Net delta exposure of the hedged position"
         )
     
     with col2:
-        hedge_ratio_val = float(st.session_state.params['hedge_ratio'])
+        hedge_ratio = float(results['params']['hedge_ratio'])
         st.metric(
             "Hedge Effectiveness",
-            f"{hedge_ratio_val:.1%}",
+            f"{hedge_ratio:.1%}",
             help="Percentage of position that is hedged"
         )
     
     with col3:
-        # Get Sharpe ratios from the risk metrics
-        hedged_sharpe_row = st.session_state.hedged_risk[st.session_state.hedged_risk['Metric'] == 'Sharpe Ratio']
-        unhedged_sharpe_row = st.session_state.unhedged_risk[st.session_state.unhedged_risk['Metric'] == 'Sharpe Ratio']
+        # Get Sharpe ratios
+        hedged_sharpe_row = hedged_risk[hedged_risk['Metric'] == 'Sharpe Ratio']
         
-        if not hedged_sharpe_row.empty and not unhedged_sharpe_row.empty:
+        if not hedged_sharpe_row.empty:
             hedged_sharpe = float(hedged_sharpe_row['Value'].iloc[0])
-            unhedged_sharpe = float(unhedged_sharpe_row['Value'].iloc[0])
-            sharpe_change = hedged_sharpe - unhedged_sharpe
-            
             st.metric(
                 "Sharpe Ratio (Hedged)",
                 f"{hedged_sharpe:.3f}",
-                delta=f"Change: {sharpe_change:+.3f}",
-                help="Risk-adjusted return measure (Expected P&L / Volatility)"
+                help="Risk-adjusted return measure"
             )
         else:
-            st.metric(
-                "Sharpe Ratio",
-                "N/A",
-                help="Risk-adjusted return measure (Expected P&L / Volatility)"
-            )
-    
-    # Risk interpretation
-    with st.expander("📖 Risk Metrics Explanation"):
-        st.markdown(f"""
-        **Expected P&L**: Average profit/loss from {len(st.session_state.sim_results['hedged_pnl']):,} simulations
-        
-        **VaR ({confidence:.0%})**: Maximum expected loss at {confidence:.0%} confidence level
-        
-        **CVaR ({confidence:.0%})**: Average loss in worst {100-confidence*100:.0f}% of scenarios (tail risk)
-        
-        **Volatility**: Standard deviation of P&L outcomes
-        
-        **Sharpe Ratio**: Risk-adjusted return measure (Expected P&L ÷ Volatility)
-        - Higher values indicate better risk-adjusted performance
-        - Positive values mean positive expected return per unit of risk
-        - Comparison shows if hedging improves risk-adjusted returns
-        
-        **Delta Exposure**: Sensitivity to price changes after hedging
-        
-        **Improvement**: Positive values indicate hedging reduces risk
-        """)
-        
-        # Add Sharpe ratio interpretation
-        hedged_sharpe_row = st.session_state.hedged_risk[st.session_state.hedged_risk['Metric'] == 'Sharpe Ratio']
-        unhedged_sharpe_row = st.session_state.unhedged_risk[st.session_state.unhedged_risk['Metric'] == 'Sharpe Ratio']
-        
-        if not hedged_sharpe_row.empty and not unhedged_sharpe_row.empty:
-            hedged_sharpe = float(hedged_sharpe_row['Value'].iloc[0])
-            unhedged_sharpe = float(unhedged_sharpe_row['Value'].iloc[0])
-            
-            st.markdown("---")
-            st.markdown("**Sharpe Ratio Analysis:**")
-            
-            if hedged_sharpe > unhedged_sharpe:
-                st.success(f"✅ **Hedging improves risk-adjusted returns** (Sharpe: {unhedged_sharpe:.3f} → {hedged_sharpe:.3f})")
-                st.markdown("The hedge provides better return per unit of risk taken.")
-            elif hedged_sharpe < unhedged_sharpe:
-                st.warning(f"⚠️ **Hedging reduces risk-adjusted returns** (Sharpe: {unhedged_sharpe:.3f} → {hedged_sharpe:.3f})")
-                st.markdown("The hedge reduces risk but at a cost to risk-adjusted performance.")
-            else:
-                st.info(f"➡️ **Hedging maintains risk-adjusted returns** (Sharpe: {hedged_sharpe:.3f})")
-                st.markdown("The hedge provides risk reduction without impacting risk-adjusted performance.")
+            st.metric("Sharpe Ratio", "N/A")
 
 
-def display_stress_testing():
-    """Display comprehensive stress testing analysis."""
+def display_stress_testing(results):
+    """Display stress testing analysis."""
     
     st.markdown('<h3 class="section-header">Historical Crisis Stress Testing</h3>', unsafe_allow_html=True)
     st.markdown("Test your hedging strategy against major historical market crises.")
     
-    # Built-in stress scenarios (simplified)
-    STRESS_SCENARIOS = {
-        "2008 Financial Crisis": {
-            "description": "Oil crashed from $147 to $34 (-77%)",
-            "oil_change": -0.77,
-            "timeline": "Jul 2008 - Dec 2008"
-        },
-        "2020 COVID Pandemic": {
-            "description": "Oil briefly went negative (-80%)",
-            "oil_change": -0.80,
-            "timeline": "Feb 2020 - May 2020"
-        },
-        "2022 Ukraine War": {
-            "description": "Supply shock drove oil up 73%",
-            "oil_change": 0.73,
-            "timeline": "Feb 2022 - Jun 2022"
-        },
-        "2014-2016 Oil Crash": {
-            "description": "Shale boom caused 76% decline",
-            "oil_change": -0.76,
-            "timeline": "Jun 2014 - Feb 2016"
-        }
-    }
-    
     # Get current position details
-    params = st.session_state.params
-    current_price = float(st.session_state.current_price)
+    params = results['params']
+    current_price = results['current_price']
     
     # Scenario selection
     col1, col2 = st.columns([2, 1])
@@ -798,7 +814,7 @@ def display_stress_testing():
         
         for scenario_name in selected_scenarios:
             scenario = STRESS_SCENARIOS[scenario_name]
-            price_change = scenario["oil_change"]
+            price_change = scenario["oil_peak_to_trough"]
             
             # Calculate position P&L
             position_size = abs(params['position'])
@@ -807,7 +823,7 @@ def display_stress_testing():
             # Unhedged P&L
             unhedged_pnl = price_shock * position_size
             
-            # Hedged P&L (simplified)
+            # Hedged P&L
             hedge_ratio = params['hedge_ratio']
             if params['strategy'] == "Futures":
                 hedge_pnl = -price_shock * position_size * hedge_ratio
@@ -817,8 +833,8 @@ def display_stress_testing():
                     hedge_pnl = -price_shock * position_size * hedge_ratio * 0.8
                 else:  # Limited upside protection
                     hedge_pnl = -price_shock * position_size * hedge_ratio * 0.2
-            else:  # Crack Spread
-                hedge_pnl = -price_shock * position_size * hedge_ratio * 0.5
+            else:
+                hedge_pnl = 0
             
             hedged_pnl = unhedged_pnl + hedge_pnl
             
@@ -861,6 +877,487 @@ def display_stress_testing():
     
     else:
         st.info("👆 Select at least one crisis scenario to run stress tests.")
+
+
+# =============================================================================
+# PORTFOLIO INTERFACE FUNCTIONS
+# =============================================================================
+
+def portfolio_interface():
+    """Portfolio management interface."""
+    
+    st.markdown('<div class="success-banner">✨ <strong>Portfolio Mode Active</strong> - Manage multiple commodity positions with advanced risk analytics</div>', unsafe_allow_html=True)
+    
+    # Create main layout
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        portfolio_builder_sidebar()
+    
+    with col2:
+        portfolio_dashboard()
+
+
+def portfolio_builder_sidebar():
+    """Portfolio builder sidebar."""
+    
+    st.markdown("## 🏗️ Portfolio Builder")
+    
+    # Portfolio summary card
+    portfolio = st.session_state.portfolio_manager
+    
+    if len(portfolio) > 0:
+        total_notional = sum(pos.notional_value for pos in portfolio.positions.values())
+        st.markdown(f"""
+        <div class="portfolio-card">
+            <h3>📊 Portfolio Summary</h3>
+            <p><strong>Positions:</strong> {len(portfolio)}</p>
+            <p><strong>Total Notional:</strong> ${total_notional:,.0f}</p>
+            <p><strong>Commodities:</strong> {len(set(pos.commodity for pos in portfolio.positions.values()))}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Quick portfolio templates
+    st.markdown("### 🚀 Quick Start")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("📝 Sample Portfolio", help="Load a sample diversified portfolio"):
+            st.session_state.portfolio_manager = create_sample_portfolio()
+            st.success("Sample portfolio loaded!")
+            st.rerun()
+    
+    with col2:
+        if st.button("🗑️ Clear All", help="Clear all positions"):
+            st.session_state.portfolio_manager.clear()
+            st.session_state.simulation_run = False
+            st.success("Portfolio cleared!")
+            st.rerun()
+    
+    # Add new position form
+    st.markdown("### ➕ Add New Position")
+    
+    with st.form("add_position_form"):
+        position_name = st.text_input(
+            "Position Name:",
+            placeholder="e.g., 'oil_main', 'gas_hedge'",
+            help="Unique identifier for this position"
+        )
+        
+        commodity = st.selectbox(
+            "Commodity:",
+            options=["WTI Crude Oil", "Brent Crude Oil", "Natural Gas"],
+            help="Select commodity type"
+        )
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            position_size = st.number_input(
+                "Position Size:",
+                min_value=-100000.0,
+                max_value=100000.0,
+                value=1000.0,
+                step=100.0,
+                help="Positive = Long, Negative = Short"
+            )
+        
+        with col2:
+            hedge_ratio = st.slider(
+                "Hedge Ratio:",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.8,
+                step=0.05,
+                format="%.2f",
+                help="Percentage of position to hedge"
+            )
+        
+        strategy = st.selectbox(
+            "Strategy:",
+            options=["Futures", "Options"],
+            help="Hedging instrument type"
+        )
+        
+        strike_price = None
+        if strategy == "Options":
+            try:
+                current_price = get_current_price(commodity)
+                strike_price = st.slider(
+                    "Strike Price:",
+                    min_value=float(current_price * 0.7),
+                    max_value=float(current_price * 1.3),
+                    value=float(current_price),
+                    step=0.5,
+                    help="Option strike price"
+                )
+            except:
+                strike_price = st.number_input(
+                    "Strike Price:",
+                    value=75.0,
+                    help="Option strike price"
+                )
+        
+        submitted = st.form_submit_button("🔥 Add Position", type="primary")
+        
+        if submitted and position_name and position_name not in st.session_state.portfolio_manager.positions:
+            # Create new position
+            new_position = Position(
+                commodity=commodity,
+                size=position_size,
+                hedge_ratio=hedge_ratio,
+                strategy=strategy,
+                strike_price=strike_price
+            )
+            
+            # Add to portfolio
+            st.session_state.portfolio_manager.add_position(position_name, new_position)
+            st.session_state.simulation_run = False
+            st.success(f"✅ Added {position_name} to portfolio!")
+            st.rerun()
+        
+        elif submitted and position_name in st.session_state.portfolio_manager.positions:
+            st.error(f"Position '{position_name}' already exists!")
+    
+    # Current positions list
+    if len(portfolio) > 0:
+        st.markdown("### 📋 Current Positions")
+        
+        for name, position in portfolio.positions.items():
+            direction_emoji = "📈" if position.size > 0 else "📉"
+            hedge_emoji = "🛡️" if position.is_hedged else "⚠️"
+            
+            st.markdown(f"""
+            <div class="position-card">
+                <strong>{direction_emoji} {name}</strong><br>
+                <small>{position.commodity} • {abs(position.size):,.0f} • {position.hedge_ratio:.1%} hedged {hedge_emoji}</small>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button(f"❌", key=f"remove_{name}", help=f"Remove {name}"):
+                st.session_state.portfolio_manager.remove_position(name)
+                st.session_state.simulation_run = False
+                st.rerun()
+    
+    # Analysis controls
+    st.markdown("### ⚙️ Analysis Settings")
+    
+    confidence_level = st.slider(
+        "Confidence Level:",
+        min_value=90,
+        max_value=99,
+        value=95,
+        step=1,
+        format="%d%%"
+    ) / 100.0
+    
+    n_simulations = st.selectbox(
+        "Simulations:",
+        options=[1000, 5000, 10000],
+        index=1
+    )
+    
+    # Update portfolio config
+    st.session_state.portfolio_manager.set_config(
+        confidence_level=confidence_level,
+        simulation_runs=n_simulations
+    )
+    
+    # Run analysis button
+    st.markdown("---")
+    if st.button("🚀 Analyze Portfolio", type="primary", disabled=len(portfolio) == 0):
+        if len(portfolio) > 0:
+            st.session_state.simulation_run = True
+            st.rerun()
+        else:
+            st.warning("Add at least one position to analyze!")
+
+
+def portfolio_dashboard():
+    """Main portfolio dashboard."""
+    
+    portfolio = st.session_state.portfolio_manager
+    
+    if len(portfolio) == 0:
+        st.markdown("""
+        <div style="text-align: center; padding: 3rem;">
+            <h2>👈 Start by adding positions</h2>
+            <p>Use the portfolio builder on the left to add commodity positions</p>
+            <p>Try the "Sample Portfolio" button for a quick start!</p>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+    
+    # Calculate portfolio analytics
+    with st.spinner("Calculating portfolio analytics..."):
+        try:
+            portfolio.calculate_correlations().calculate_portfolio_risk()
+            analysis_ready = True
+        except Exception as e:
+            st.error(f"Error calculating analytics: {e}")
+            analysis_ready = False
+    
+    # Create tabs for different views
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 Portfolio Overview", 
+        "🔗 Correlations", 
+        "⚠️ Risk Analysis", 
+        "📈 Performance", 
+        "🧪 Stress Testing"
+    ])
+    
+    with tab1:
+        portfolio_overview_tab(portfolio, analysis_ready)
+    
+    with tab2:
+        correlations_tab(portfolio, analysis_ready)
+    
+    with tab3:
+        portfolio_risk_analysis_tab(portfolio, analysis_ready)
+    
+    with tab4:
+        portfolio_performance_tab(portfolio, analysis_ready)
+    
+    with tab5:
+        portfolio_stress_testing_tab(portfolio, analysis_ready)
+
+
+def portfolio_overview_tab(portfolio, analysis_ready):
+    """Portfolio overview tab."""
+    
+    st.markdown("### 📊 Portfolio Composition")
+    
+    # Portfolio summary table
+    summary_df = portfolio.get_portfolio_summary()
+    if not summary_df.empty:
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+    
+    # Portfolio visualization
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Position weights pie chart
+        weights = portfolio.get_portfolio_weights()
+        if weights:
+            fig_pie = go.Figure(data=[go.Pie(
+                labels=list(weights.keys()),
+                values=list(weights.values()),
+                hole=0.4,
+                textinfo='label+percent',
+                textposition='auto'
+            )])
+            
+            fig_pie.update_layout(
+                title="Portfolio Allocation by Position",
+                showlegend=True,
+                height=400
+            )
+            
+            st.plotly_chart(fig_pie, use_container_width=True)
+    
+    with col2:
+        # Commodity exposure
+        exposure_df = portfolio.get_commodity_exposure()
+        if not exposure_df.empty:
+            st.markdown("**Net Commodity Exposure:**")
+            st.dataframe(exposure_df, use_container_width=True, hide_index=True)
+        
+        # Risk metrics summary
+        if analysis_ready:
+            risk_summary = portfolio.get_portfolio_risk_summary()
+            if risk_summary:
+                st.markdown("**Portfolio Risk Metrics:**")
+                for metric, value in list(risk_summary.items())[:4]:
+                    st.metric(metric, value)
+
+
+def correlations_tab(portfolio, analysis_ready):
+    """Correlations analysis tab."""
+    
+    st.markdown("### 🔗 Cross-Commodity Correlations")
+    
+    if not analysis_ready:
+        st.warning("Run portfolio analysis to see correlations")
+        return
+    
+    corr_matrix = portfolio.get_correlation_matrix()
+    
+    if corr_matrix.empty:
+        st.info("Need at least 2 different commodities to calculate correlations")
+        return
+    
+    # Correlation heatmap
+    fig_heatmap = go.Figure(data=go.Heatmap(
+        z=corr_matrix.values,
+        x=corr_matrix.columns,
+        y=corr_matrix.index,
+        colorscale='RdBu',
+        zmid=0,
+        text=corr_matrix.round(3).values,
+        texttemplate="%{text}",
+        textfont={"size": 12},
+        colorbar=dict(title="Correlation")
+    ))
+    
+    fig_heatmap.update_layout(
+        title="Commodity Correlation Matrix",
+        height=500,
+        xaxis_title="Commodities",
+        yaxis_title="Commodities"
+    )
+    
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+    
+    # Correlation insights
+    st.markdown("### 📋 Correlation Insights")
+    
+    correlations = []
+    commodities = corr_matrix.columns.tolist()
+    
+    for i, commodity1 in enumerate(commodities):
+        for j, commodity2 in enumerate(commodities):
+            if i < j:
+                corr_value = corr_matrix.loc[commodity1, commodity2]
+                correlations.append({
+                    'Commodity Pair': f"{commodity1} vs {commodity2}",
+                    'Correlation': f"{corr_value:.3f}",
+                    'Relationship': get_correlation_description(corr_value)
+                })
+    
+    if correlations:
+        corr_df = pd.DataFrame(correlations)
+        st.dataframe(corr_df, use_container_width=True, hide_index=True)
+
+
+def portfolio_risk_analysis_tab(portfolio, analysis_ready):
+    """Portfolio risk analysis tab."""
+    
+    st.markdown("### ⚠️ Portfolio Risk Analysis")
+    
+    if not analysis_ready:
+        st.warning("Run portfolio analysis to see risk metrics")
+        return
+    
+    risk_summary = portfolio.get_portfolio_risk_summary()
+    
+    if not risk_summary:
+        st.error("Unable to calculate risk metrics")
+        return
+    
+    # Risk metrics dashboard
+    col1, col2, col3, col4 = st.columns(4)
+    
+    metrics_list = list(risk_summary.items())
+    
+    with col1:
+        st.metric(metrics_list[0][0], metrics_list[0][1])
+        if len(metrics_list) > 4:
+            st.metric(metrics_list[4][0], metrics_list[4][1])
+    
+    with col2:
+        st.metric(metrics_list[1][0], metrics_list[1][1])
+        if len(metrics_list) > 5:
+            st.metric(metrics_list[5][0], metrics_list[5][1])
+    
+    with col3:
+        st.metric(metrics_list[2][0], metrics_list[2][1])
+        if len(metrics_list) > 6:
+            st.metric(metrics_list[6][0], metrics_list[6][1])
+    
+    with col4:
+        st.metric(metrics_list[3][0], metrics_list[3][1])
+        if len(metrics_list) > 7:
+            st.metric(metrics_list[7][0], metrics_list[7][1])
+    
+    # Portfolio P&L distribution
+    st.markdown("### 📊 Portfolio P&L Distribution")
+    
+    try:
+        portfolio_pnl = portfolio._simulate_portfolio_pnl()
+        
+        if len(portfolio_pnl) > 0:
+            fig_hist = go.Figure(data=[go.Histogram(
+                x=portfolio_pnl,
+                nbinsx=50,
+                name='Portfolio P&L',
+                marker_color='skyblue',
+                opacity=0.7
+            )])
+            
+            # Add VaR line
+            var_95 = np.percentile(portfolio_pnl, 5)
+            fig_hist.add_vline(
+                x=var_95,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"VaR (95%): ${var_95:,.0f}"
+            )
+            
+            fig_hist.update_layout(
+                title="Portfolio P&L Distribution (Monte Carlo Simulation)",
+                xaxis_title="P&L ($)",
+                yaxis_title="Frequency",
+                height=400
+            )
+            
+            st.plotly_chart(fig_hist, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"Could not generate P&L distribution: {e}")
+
+
+def portfolio_performance_tab(portfolio, analysis_ready):
+    """Portfolio performance analysis tab."""
+    
+    st.markdown("### 📈 Portfolio Performance Analysis")
+    
+    if not analysis_ready:
+        st.warning("Run portfolio analysis to see performance metrics")
+        return
+    
+    st.info("🚧 Advanced performance analytics coming soon!")
+    st.markdown("""
+    **Planned Features:**
+    - Historical performance backtesting
+    - Hedge effectiveness tracking
+    - Performance attribution by position
+    - Benchmark comparisons
+    - Rolling risk metrics
+    """)
+
+
+def portfolio_stress_testing_tab(portfolio, analysis_ready):
+    """Portfolio stress testing tab."""
+    
+    st.markdown("### 🧪 Portfolio Stress Testing")
+    
+    if not analysis_ready:
+        st.warning("Run portfolio analysis to see stress testing")
+        return
+    
+    st.info("🚧 Multi-commodity stress testing coming soon!")
+    st.markdown("""
+    **Planned Features:**
+    - Historical crisis scenarios (2008, 2020, etc.)
+    - Custom scenario builder
+    - Component stress testing
+    - Correlation breakdown analysis
+    - Recovery scenarios
+    """)
+
+
+def get_correlation_description(correlation):
+    """Get human-readable correlation description."""
+    if correlation > 0.7:
+        return "Strong Positive"
+    elif correlation > 0.3:
+        return "Moderate Positive"
+    elif correlation > -0.3:
+        return "Weak/No Correlation"
+    elif correlation > -0.7:
+        return "Moderate Negative"
+    else:
+        return "Strong Negative"
 
 
 if __name__ == "__main__":
