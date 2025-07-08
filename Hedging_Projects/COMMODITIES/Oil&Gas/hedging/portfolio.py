@@ -12,7 +12,6 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 import warnings
 
-# Import your existing modules
 from .data import get_prices, get_current_price
 from .simulation import simulate_hedged_vs_unhedged
 from .risk import calculate_risk_metrics
@@ -20,7 +19,6 @@ from .risk import calculate_risk_metrics
 
 @dataclass(frozen=True)
 class Position:
-    """ Immutable position data structure. """
     commodity: str
     size: float
     hedge_ratio: float
@@ -44,34 +42,36 @@ class Position:
     
     @property
     def direction(self) -> str:
-        """Position direction: 'Long' or 'Short'."""
+        """ Position direction: Long/Short """
         return "Long" if self.size > 0 else "Short"
+
     
     @property
     def abs_size(self) -> float:
-        """Absolute position size."""
         return abs(self.size)
+
     
     @property
     def notional_value(self) -> float:
-        """Notional value of position."""
         return self.abs_size * self.current_price
+
     
     @property
     def is_hedged(self) -> bool:
-        """Check if position is hedged."""
         return self.hedge_ratio > 0
+
     
     def with_hedge_ratio(self, new_ratio: float) -> 'Position':
-        """Create new position with different hedge ratio."""
+        """ Create new position with different hedge ratio """
         return replace(self, hedge_ratio=new_ratio)
+
     
     def with_size(self, new_size: float) -> 'Position':
-        """Create new position with different size."""
+        """ Create new position with different size """
         return replace(self, size=new_size)
 
+    
     def get_position_greeks(self) -> Dict[str, float]:
-        """Calculate Greeks for this position."""
         if self.strategy != "Options" or not self.strike_price:
             return {
                 'delta': 0.0,
@@ -84,17 +84,14 @@ class Position:
         try:
             from hedging.options_math import BlackScholesCalculator, get_risk_free_rate, get_commodity_volatility, time_to_expiration
             
-            # Parameters for Greeks calculation
             current_price = self.current_price
             strike = self.strike_price
-            time_to_exp = time_to_expiration(3)  # 3 months default
+            time_to_exp = time_to_expiration(3)  # 3 months 
             risk_free_rate = get_risk_free_rate()
             volatility = get_commodity_volatility(self.commodity)
             
-            # Determine option type
             option_type = 'put' if self.size > 0 else 'call'
             
-            # Calculate Greeks
             greeks = BlackScholesCalculator.calculate_greeks(
                 current_price, strike, time_to_exp, risk_free_rate, volatility, option_type
             )
@@ -123,7 +120,7 @@ class Position:
 
 @dataclass
 class PortfolioRiskMetrics:
-    """Container for portfolio risk metrics."""
+    """ Container for portfolio risk metrics """
     expected_pnl: float
     var_95: float
     cvar_95: float
@@ -132,9 +129,10 @@ class PortfolioRiskMetrics:
     max_drawdown: float
     num_positions: int
     total_notional: float
+
     
     def to_dict(self) -> Dict[str, Union[str, float]]:
-        """Convert to formatted dictionary for display."""
+        """ Convert to formatted dictionary for display """
         return {
             'Expected P&L': f"${self.expected_pnl:,.0f}",
             'VaR (95%)': f"${self.var_95:,.0f}",
@@ -148,25 +146,15 @@ class PortfolioRiskMetrics:
 
 
 class PortfolioManager:
-    """
-    Multi-commodity portfolio manager with fluent interface.
-    
-    Example Usage:
-        portfolio = (PortfolioManager()
-            .add_position("oil_main", Position("WTI Crude Oil", 10000, 0.8))
-            .add_position("gas_hedge", Position("Natural Gas", -5000, 0.6))
-            .calculate_correlations()
-            .calculate_portfolio_risk())
-    """
+    """ Multi-commodity portfolio manager with fluent interface """
     
     def __init__(self):
-        """Initialize empty portfolio."""
+        """ Empty portfolio """
         self.positions: Dict[str, Position] = {}
         self.price_data: Dict[str, pd.Series] = {}
         self.correlation_matrix: Optional[pd.DataFrame] = None
         self.portfolio_risk: Optional[PortfolioRiskMetrics] = None
         
-        # Configuration
         self.config = {
             'correlation_window': 252,  # 1 year
             'simulation_runs': 5000,
@@ -184,61 +172,42 @@ class PortfolioManager:
         
         # Track if portfolio has changed
         self._portfolio_hash = None
-    
-    # ==============================
-    # FLUENT INTERFACE METHODS 
-    # ==============================
+
     
     def add_position(self, name: str, position: Position) -> 'PortfolioManager':
-        """
-        Add position to portfolio.
-        
-        Args:
-            name: Unique position name
-            position: Position object
-            
-        Returns:
-            Self for method chaining
-        """
+       
         self.positions[name] = position
         self._invalidate_cache()
         self._load_price_data_async(position.commodity)
         return self
+
     
     def remove_position(self, name: str) -> 'PortfolioManager':
-        """Remove position from portfolio."""
+
         if name in self.positions:
             del self.positions[name]
             self._invalidate_cache()
         return self
+
     
     def update_position(self, name: str, **kwargs) -> 'PortfolioManager':
-        """
-        Update existing position with new parameters.
-        
-        Args:
-            name: Position name
-            **kwargs: Position attributes to update
-        """
+
         if name in self.positions:
             current_pos = self.positions[name]
             self.positions[name] = replace(current_pos, **kwargs)
             self._invalidate_cache()
         return self
+
     
     def set_config(self, **config_updates) -> 'PortfolioManager':
-        """Update portfolio configuration."""
+ 
         self.config.update(config_updates)
         self._invalidate_cache()
         return self
+
     
     def calculate_correlations(self, force_recalculate: bool = False) -> 'PortfolioManager':
-        """
-        Calculate cross-commodity correlations.
-        
-        Args:
-            force_recalculate: Force recalculation even if cached
-        """
+
         if not force_recalculate and self._cache['correlations'] is not None:
             self.correlation_matrix = self._cache['correlations']
             return self
@@ -282,14 +251,10 @@ class PortfolioManager:
             self.correlation_matrix = pd.DataFrame()
         
         return self
+
     
     def calculate_portfolio_risk(self, force_recalculate: bool = False) -> 'PortfolioManager':
-        """
-        Calculate portfolio-level risk metrics.
-        
-        Args:
-            force_recalculate: Force recalculation even if cached
-        """
+
         if not force_recalculate and self._cache['risk_metrics'] is not None:
             self.portfolio_risk = self._cache['risk_metrics']
             return self
@@ -298,33 +263,28 @@ class PortfolioManager:
             return self
         
         try:
-            # Simulate portfolio P&L
             portfolio_pnl = self._simulate_portfolio_pnl()
             
             if len(portfolio_pnl) == 0:
                 return self
             
-            # Calculate risk metrics
             confidence = self.config['confidence_level']
             var_percentile = (1 - confidence) * 100
             
             expected_pnl = float(np.mean(portfolio_pnl))
             var_95 = float(np.percentile(portfolio_pnl, var_percentile))
             
-            # CVaR calculation
             losses_worse_than_var = portfolio_pnl[portfolio_pnl <= var_95]
             cvar_95 = float(np.mean(losses_worse_than_var)) if len(losses_worse_than_var) > 0 else var_95
             
             volatility = float(np.std(portfolio_pnl))
             sharpe_ratio = expected_pnl / volatility if volatility > 0 else 0
             
-            # Estimate max drawdown
             cumulative_pnl = np.cumsum(portfolio_pnl)
             running_max = np.maximum.accumulate(cumulative_pnl)
             drawdowns = cumulative_pnl - running_max
             max_drawdown = float(np.min(drawdowns))
             
-            # Portfolio summary stats
             total_notional = sum(pos.notional_value for pos in self.positions.values())
             
             self.portfolio_risk = PortfolioRiskMetrics(
@@ -344,13 +304,10 @@ class PortfolioManager:
             print(f"Warning: Could not calculate portfolio risk: {e}")
         
         return self
-    
-    # ======================
-    # QUERY METHODS 
-    # ======================
+
     
     def get_portfolio_summary(self) -> pd.DataFrame:
-        """Get detailed portfolio summary table."""
+        """ Get detailed portfolio summary table """
         if not self.positions:
             return pd.DataFrame()
         
@@ -374,9 +331,10 @@ class PortfolioManager:
             })
         
         return pd.DataFrame(summary_data)
+
     
     def get_portfolio_weights(self) -> Dict[str, float]:
-        """Get portfolio weights by notional value."""
+        """ Get portfolio weights by notional value """
         if not self.positions:
             return {}
         
@@ -389,9 +347,10 @@ class PortfolioManager:
             name: pos.notional_value / total_notional 
             for name, pos in self.positions.items()
         }
+
     
     def get_commodity_exposure(self) -> pd.DataFrame:
-        """Get net exposure by commodity."""
+        """ Get net exposure by commodity """
         if not self.positions:
             return pd.DataFrame()
         
@@ -416,15 +375,16 @@ class PortfolioManager:
         ]
         
         return pd.DataFrame(exposure_data)
+
     
     def get_correlation_matrix(self) -> pd.DataFrame:
-        """Get correlation matrix (calculate if needed)."""
+        """ Get correlation matrix (calculate if needed) """
         if self.correlation_matrix is None:
             self.calculate_correlations()
         return self.correlation_matrix if self.correlation_matrix is not None else pd.DataFrame()
+
     
     def get_portfolio_risk_summary(self) -> Dict[str, Union[str, float]]:
-        """Get formatted portfolio risk summary."""
         if self.portfolio_risk is None:
             self.calculate_portfolio_risk()
         
@@ -433,12 +393,8 @@ class PortfolioManager:
         
         return self.portfolio_risk.to_dict()
     
-    # ===============================
-    # PRIVATE HELPER METHODS
-    # ===============================
-    
+
     def _load_price_data_async(self, commodity: str) -> None:
-        """Load price data for commodity (non-blocking)."""
         if commodity not in self.price_data:
             try:
                 self.price_data[commodity] = get_prices(commodity, period="1y")
@@ -452,9 +408,9 @@ class PortfolioManager:
                     name=commodity
                 )
                 self.price_data[commodity] = dummy_prices
+
     
     def _simulate_portfolio_pnl(self) -> np.ndarray:
-        """Simulate portfolio P&L using Monte Carlo."""
         if not self.positions:
             return np.array([])
         
@@ -465,7 +421,6 @@ class PortfolioManager:
                 continue
             
             try:
-                # Simulate individual position
                 sim_result = simulate_hedged_vs_unhedged(
                     self.price_data[position.commodity],
                     position.size,
@@ -483,14 +438,15 @@ class PortfolioManager:
                 continue
         
         return portfolio_pnl
+
     
     def _invalidate_cache(self) -> None:
-        """Invalidate all cached calculations."""
+        """ Invalidate all cached calculations """
         self._cache = {key: None for key in self._cache.keys()}
         self._cache['last_update'] = datetime.now()
     
     def _get_portfolio_hash(self) -> str:
-        """Generate hash of current portfolio state."""
+        """ Generate hash of current portfolio state """
         position_strings = []
         for name, pos in sorted(self.positions.items()):
             pos_str = f"{name}:{pos.commodity}:{pos.size}:{pos.hedge_ratio}:{pos.strategy}"
@@ -498,12 +454,8 @@ class PortfolioManager:
         
         return hash("|".join(position_strings))
     
-    # ===============================
-    # UTILITY METHODS
-    # ===============================
-    
+
     def copy(self) -> 'PortfolioManager':
-        """Create a deep copy of the portfolio."""
         new_portfolio = PortfolioManager()
         new_portfolio.positions = self.positions.copy()
         new_portfolio.price_data = self.price_data.copy()
@@ -511,22 +463,20 @@ class PortfolioManager:
         return new_portfolio
     
     def clear(self) -> 'PortfolioManager':
-        """Clear all positions and reset portfolio."""
         self.positions.clear()
         self.price_data.clear()
         self._invalidate_cache()
         return self
     
     def __len__(self) -> int:
-        """Return number of positions."""
         return len(self.positions)
     
     def __contains__(self, position_name: str) -> bool:
-        """Check if position exists."""
+        """ Check if position exists """
         return position_name in self.positions
     
     def __str__(self) -> str:
-        """String representation of portfolio."""
+        """ String representation of portfolio """
         if not self.positions:
             return "Empty Portfolio"
         
@@ -534,17 +484,12 @@ class PortfolioManager:
         return f"Portfolio: {len(self.positions)} positions, ${total_notional:,.0f} notional"
     
     def __repr__(self) -> str:
-        """Detailed representation of portfolio."""
+        """ Detailed representation of portfolio """
         return f"PortfolioManager(positions={len(self.positions)}, total_notional=${sum(pos.notional_value for pos in self.positions.values()):,.0f})"
 
 
-# ===================================================
-# FACTORY FUNCTIONS (For Easy Position Creation)
-# ===================================================
-
-def create_oil_position(size: float, hedge_ratio: float = 0.0, 
-                       strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
-    """Create WTI Crude Oil position."""
+def create_oil_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
+    """ Create WTI Crude Oil position """
     return Position(
         commodity="WTI Crude Oil",
         size=size,
@@ -554,9 +499,8 @@ def create_oil_position(size: float, hedge_ratio: float = 0.0,
     )
 
 
-def create_gas_position(size: float, hedge_ratio: float = 0.0,
-                       strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
-    """Create Natural Gas position."""
+def create_gas_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
+    """ Create Natural Gas position """
     return Position(
         commodity="Natural Gas",
         size=size,
@@ -566,9 +510,8 @@ def create_gas_position(size: float, hedge_ratio: float = 0.0,
     )
 
 
-def create_brent_position(size: float, hedge_ratio: float = 0.0,
-                         strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
-    """Create Brent Crude Oil position."""
+def create_brent_position(size: float, hedge_ratio: float = 0.0, strategy: str = "Futures", strike_price: Optional[float] = None) -> Position:
+    """ Create Brent Crude Oil position """
     return Position(
         commodity="Brent Crude Oil",
         size=size,
@@ -579,7 +522,7 @@ def create_brent_position(size: float, hedge_ratio: float = 0.0,
 
 
 def create_sample_portfolio() -> PortfolioManager:
-    """Create a sample diversified portfolio for testing."""
+    """ Create a sample diversified portfolio for testing """
     return (PortfolioManager()
         .add_position("wti_main", create_oil_position(10000, 0.8))
         .add_position("gas_hedge", create_gas_position(-5000, 0.6))
@@ -588,12 +531,7 @@ def create_sample_portfolio() -> PortfolioManager:
         .calculate_portfolio_risk())
 
 
-# =================
-# USAGE EXAMPLE
-# =================
-
 if __name__ == "__main__":
-    # Example usage of the fluent interface
     print("Creating sample portfolio...")
     
     portfolio = (PortfolioManager()
