@@ -18,7 +18,7 @@ from hedging.strategies import compute_payoff_diagram, get_hedge_summary
 from hedging.simulation import simulate_hedged_vs_unhedged, compare_hedging_effectiveness
 from hedging.risk import calculate_risk_metrics, calculate_delta_exposure, summarize_risk_comparison
 from hedging.stress_testing import STRESS_SCENARIOS
-from hedging.portfolio import (PortfolioManager, Position, create_oil_position, create_gas_position, create_brent_position, create_sample_portfolio)
+from hedging.portfolio import (PortfolioManager, Position, create_oil_position, create_gas_position, create_brent_position, create_sample_portfolio, OptionType, OptionDirection, PositionType)
 from hedging.greeks_dashboard import GreeksDashboard, GreeksMonitor, render_enhanced_greeks_tab
 
 
@@ -433,53 +433,106 @@ def portfolio_builder_sidebar():
     if strategy == "Options":
         st.markdown("**⚙️ Options Parameters:**")
         
+        position_type = st.selectbox(
+        "Position Type:",
+        options=["Hedge", "Speculation"],
+        help="Hedge = protect underlying position, Speculation = pure options trade",
+        key="position_type_selector"
+        )
+    
         col1, col2 = st.columns(2)
-        
+    
         with col1:
+            # NEW: Explicit option type selection
+            option_type = st.selectbox(
+                "Option Type:",
+                options=["Put", "Call"],
+                help="Put = right to sell, Call = right to buy",
+                key="option_type_selector"
+            )
+        
+            # Show current price for reference
             try:
                 preview_commodity = "WTI Crude Oil"
                 current_price = get_current_price(preview_commodity)
-                strike_price = st.slider(
-                    "Strike Price ($):",
-                    min_value=float(current_price * 0.7),
-                    max_value=float(current_price * 1.3),
-                    value=float(current_price),
-                    step=0.5,
-                    help="Option strike price",
-                    key="portfolio_strike_price"
-                )
-                
-                moneyness = current_price / strike_price
-                if abs(moneyness - 1.0) < 0.05:
-                    st.caption("🎯 At-the-Money (ATM)")
-                elif moneyness > 1.05:
-                    st.caption("📉 Out-of-the-Money (OTM)")
-                else:
-                    st.caption("📈 In-the-Money (ITM)")
-                    
-            except Exception as e:
-                st.warning(f"Could not fetch current price: {e}")
-                strike_price = st.number_input(
-                    "Strike Price ($):", 
-                    value=75.0, 
-                    min_value=1.0, 
-                    max_value=200.0,
-                    step=0.5,
-                    key="portfolio_strike_fallback"
-                )
-        
+                st.caption(f"Current WTI Price: ${current_price:.2f}")
+            except:
+                pass
+    
         with col2:
-            option_expiry = st.selectbox(
-                "Option Maturity:",
-                options=[1, 3, 6, 12],
-                index=1,
-                format_func=lambda x: f"{x} month{'s' if x > 1 else ''}",
-                help="Time until option expiration",
-                key="portfolio_option_expiry"
+            # NEW: Explicit option direction selection  
+            option_direction = st.selectbox(
+                "Option Direction:",
+                options=["Long", "Short"],
+                help="Long = buy option, Short = sell option",
+                key="option_direction_selector"
             )
-            
-            st.caption("📊 Option type will be determined by position direction")
-        
+
+            # Show what this means
+            action = "Buy" if option_direction == "Long" else "Sell"
+            st.caption(f"Action: {action} {option_type} option")
+
+        # Strike price (enhanced)
+        try:
+            preview_commodity = "WTI Crude Oil"
+            current_price = get_current_price(preview_commodity)
+            strike_price = st.slider(
+                "Strike Price ($):",
+                min_value=float(current_price * 0.7),
+                max_value=float(current_price * 1.3),
+                value=float(current_price),
+                step=0.5,
+                help="Option strike price",
+                key="portfolio_strike_price"
+            )
+
+            # Show moneyness
+            moneyness = current_price / strike_price
+            if abs(moneyness - 1.0) < 0.05:
+                st.caption("🎯 At-the-Money (ATM)")
+            elif moneyness > 1.05:
+                st.caption("📉 Out-of-the-Money (OTM)")
+            else:
+                st.caption("📈 In-the-Money (ITM)")
+
+        except Exception as e:
+            st.warning(f"Could not fetch current price: {e}")
+            strike_price = st.number_input(
+                "Strike Price ($):", 
+                value=75.0, 
+                min_value=1.0, 
+                max_value=200.0,
+                step=0.5,
+                key="portfolio_strike_fallback"
+            )
+
+        # Option expiry (keep existing code)
+        option_expiry = st.selectbox(
+            "Option Maturity:",
+            options=[1, 3, 6, 12],
+            index=1,
+            format_func=lambda x: f"{x} month{'s' if x > 1 else ''}",
+            help="Time until option expiration",
+            key="portfolio_option_expiry"
+        )   
+    
+        # NEW: Options quantity configuration
+        if position_type == "Speculation":
+            st.markdown("**📊 Options Quantity:**")
+            option_quantity = st.number_input(
+                "Number of Contracts:",
+                min_value=1.0,
+                max_value=100000.0,
+                value=1000.0,
+                step=100.0,
+                help="Number of option contracts to trade",
+                key="option_quantity_input"
+            )
+            st.caption(f"Trading {option_quantity:,.0f} {option_type.lower()} contracts")
+        else:
+            st.info("📝 For hedges, options quantity = underlying size × hedge ratio")
+            option_quantity = None
+
         st.markdown("---")
     
     hedge_ratio = st.slider(
@@ -540,7 +593,8 @@ def portfolio_builder_sidebar():
         
         if submitted and position_name:
             if position_name not in st.session_state.portfolio_manager.positions:
-                # Adjust strike price based on selected commodity if different from preview
+        
+                # Determine final parameters based on commodity selection
                 final_strike_price = strike_price
                 if strategy == "Options" and commodity != "WTI Crude Oil":
                     try:
@@ -548,15 +602,32 @@ def portfolio_builder_sidebar():
                         final_strike_price = commodity_price
                     except:
                         final_strike_price = strike_price
-                
-                new_position = Position(
-                    commodity=commodity,
-                    size=position_size,
-                    hedge_ratio=hedge_ratio/100.0,  # Convert percentage to decimal
-                    strategy=strategy,
-                    strike_price=final_strike_price
-                )
-                
+        
+                # Create position based on strategy
+                if strategy == "Options":
+                    # NEW: Create enhanced options position
+                    new_position = Position(
+                        commodity=commodity,
+                        size=position_size,
+                        hedge_ratio=hedge_ratio/100.0,
+                        strategy=strategy,
+                        strike_price=final_strike_price,
+                        # NEW: Enhanced options parameters
+                        option_type=OptionType.PUT if option_type == "Put" else OptionType.CALL,
+                        option_direction=OptionDirection.LONG if option_direction == "Long" else OptionDirection.SHORT,
+                        position_type=PositionType.SPECULATION if position_type == "Speculation" else PositionType.HEDGE,
+                        option_quantity=option_quantity if option_quantity is not None else abs(position_size) * (hedge_ratio/100.0)
+                    )
+                else:
+                    # Existing futures position (no changes needed)
+                    new_position = Position(
+                        commodity=commodity,
+                        size=position_size,
+                        hedge_ratio=hedge_ratio/100.0,
+                        strategy=strategy,
+                        strike_price=final_strike_price
+                    )
+
                 st.session_state.portfolio_manager.add_position(position_name, new_position)
                 st.success(f"✅ Added {position_name} to portfolio!")
                 st.rerun()
