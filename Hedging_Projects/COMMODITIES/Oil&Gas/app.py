@@ -55,7 +55,7 @@ st.markdown("""
     .mode-container {
         background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%); border-radius: 20px; margin: 3rem auto; max-width: 1000px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.15); text-align: center; display: flex; justify-content: center;
-        align-items: center; padding: 2rem;;
+        align-items: center; padding: 2rem;
     }
     
     .mode-title {
@@ -244,7 +244,7 @@ def main():
     """, unsafe_allow_html=True)
     
     # Centered mode selection with better styling
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 6, 1])
     
     with col2:
         mode_option = st.radio(
